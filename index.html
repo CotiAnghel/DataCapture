@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>DataCapture</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1117;--surface:#1a1d27;--card:#22263a;--border:#2e3350;
+    --accent:#5b7fff;--accent2:#a78bfa;--success:#34d399;
+    --danger:#f87171;--warn:#fbbf24;--text:#e8eaf6;--muted:#7b82a8;
+    --font:'Segoe UI',system-ui,sans-serif;--radius:12px;--radius-sm:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100dvh;font-size:15px;line-height:1.5;}
+
+  header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+  .logo{font-size:17px;font-weight:700;letter-spacing:-.5px;}
+  .logo span{color:var(--accent);}
+  .header-right{display:flex;align-items:center;gap:8px;}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s;}
+  .sync-dot.ok{background:var(--success);}
+  .sync-dot.err{background:var(--danger);}
+  .sync-dot.syncing{background:var(--warn);animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .rec-count{font-size:12px;color:var(--muted);background:var(--card);border:1px solid var(--border);padding:4px 10px;border-radius:20px;}
+  .user-avatar-chip{display:flex;align-items:center;gap:7px;background:rgba(91,127,255,.1);border:1px solid rgba(91,127,255,.25);border-radius:20px;padding:5px 11px 5px 7px;cursor:pointer;}
+  .avatar-circle{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0;}
+  .avatar-circle.unset{background:var(--card);border:1.5px dashed var(--border);color:var(--muted);font-size:13px;}
+  .avatar-name{font-size:12px;font-weight:700;color:var(--accent);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  .tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);padding:0 8px;}
+  .tab{flex:1;padding:12px 8px;text-align:center;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;user-select:none;}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+  .page{display:none;padding:16px;padding-bottom:90px;}
+  .page.active{display:block;}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
+  .card-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:14px;}
+
+  label{font-size:13px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;margin-top:12px;}
+  label:first-of-type{margin-top:0;}
+  input[type=text],input[type=number],input[type=date],select,textarea{
+    width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);
+    color:var(--text);font-family:var(--font);font-size:15px;padding:11px 14px;outline:none;
+    transition:border-color .2s;-webkit-appearance:none;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+  select option{background:var(--surface);}
+
+  /* group header inside form */
+  .field-group-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--accent);margin:18px 0 4px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+  .field-group-title:first-child{margin-top:0;}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 20px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer;border:none;transition:opacity .15s,transform .1s;user-select:none;width:100%;margin-top:8px;}
+  .btn:active{opacity:.8;transform:scale(.98);}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-success{background:var(--success);color:#0f1117;}
+  .btn-danger{background:var(--danger);color:#fff;}
+  .btn-warn{background:var(--warn);color:#0f1117;}
+  .btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text);}
+  .btn-sm{padding:7px 14px;font-size:13px;width:auto;margin-top:0;}
+  .btn-icon{width:36px;height:36px;padding:0;border-radius:8px;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .row{display:flex;gap:10px;}
+  .row>*{flex:1;}
+  .req-star{color:var(--danger);margin-left:2px;}
+
+  .entry-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .2s;}
+  .entry-card:hover,.entry-card:active{border-color:var(--accent);}
+  .entry-header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .entry-meta{display:flex;flex-direction:column;gap:2px;}
+  .entry-id{font-size:11px;color:var(--muted);font-weight:600;}
+  .entry-user-tag{font-size:11px;font-weight:700;color:var(--accent);}
+  .entry-date-label{font-size:12px;font-weight:700;color:var(--text);}
+  .entry-preview{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;}
+  .entry-chip{font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 9px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .entry-chip strong{color:var(--muted);font-weight:600;}
+  .sync-badge{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;margin-left:4px;}
+  .sync-badge.pending{background:rgba(251,191,36,.15);color:var(--warn);border:1px solid rgba(251,191,36,.3);}
+  .sync-badge.synced{background:rgba(52,211,153,.1);color:var(--success);border:1px solid rgba(52,211,153,.3);}
+
+  .empty{text-align:center;padding:60px 20px;color:var(--muted);}
+  .empty-icon{font-size:48px;margin-bottom:12px;}
+  .empty h3{font-size:16px;color:var(--text);margin-bottom:6px;}
+
+  /* modals */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:flex-end;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal-overlay.center{align-items:center;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;padding:20px 18px;width:100%;max-width:600px;max-height:90dvh;overflow-y:auto;}
+  .modal-overlay.center .modal{border-radius:var(--radius);max-width:420px;}
+  .modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;}
+  .modal-title{font-size:16px;font-weight:700;margin-bottom:16px;}
+
+  /* confirm dialog */
+  .confirm-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
+  .confirm-row:last-child{border-bottom:none;}
+  .confirm-label{font-size:13px;color:var(--muted);flex:1;}
+  .confirm-value{font-size:14px;font-weight:700;color:var(--text);text-align:right;flex:1;}
+  .confirm-section{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);padding:10px 0 4px;border-bottom:1px solid var(--border);margin-top:4px;}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid var(--border);border-radius:30px;padding:10px 20px;font-size:14px;font-weight:600;z-index:999;transition:transform .3s ease;white-space:nowrap;}
+  .toast.show{transform:translateX(-50%) translateY(0);}
+  .toast.success{border-color:var(--success);color:var(--success);}
+  .toast.error{border-color:var(--danger);color:var(--danger);}
+  .toast.warn{border-color:var(--warn);color:var(--warn);}
+
+  .export-stat{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
+  .export-stat:last-child{border-bottom:none;}
+  .stat-label{font-size:13px;color:var(--muted);}
+  .stat-value{font-size:14px;font-weight:700;color:var(--text);}
+
+  .search-wrap{position:relative;margin-bottom:14px;}
+  .search-wrap input{padding-left:38px;}
+  .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:16px;}
+
+  .filter-bar{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px;}
+  .filter-chip{font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0;}
+  .filter-chip.active{background:rgba(91,127,255,.15);color:var(--accent);border-color:rgba(91,127,255,.4);}
+
+  .share-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;}
+  .share-btn{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text);}
+  .share-btn:active{border-color:var(--accent);}
+  .share-btn .icon{font-size:26px;}
+
+  .tip-box{background:rgba(91,127,255,.07);border:1px solid rgba(91,127,255,.2);border-radius:var(--radius-sm);padding:12px 14px;font-size:13px;color:var(--muted);line-height:1.6;margin-top:10px;}
+  .tip-box strong{color:var(--text);}
+
+  .code-block{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:monospace;font-size:11px;color:var(--accent2);margin-top:8px;overflow-x:auto;white-space:pre;line-height:1.7;}
+  .setup-step{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+  .setup-step:last-child{border-bottom:none;}
+  .step-num{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .step-text{flex:1;font-size:13px;color:var(--muted);line-height:1.6;}
+  .step-text strong{color:var(--text);display:block;margin-bottom:2px;}
+
+  input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Data<span>Capture</span></div>
+  <div class="header-right">
+    <div class="sync-dot" id="syncDot"></div>
+    <div class="user-avatar-chip" onclick="openChangeUser()" id="userChip">
+      <div class="avatar-circle unset" id="avatarCircle">👤</div>
+      <div class="avatar-name" id="avatarName">Setează</div>
+    </div>
+    <div class="rec-count" id="recCount">0 înreg.</div>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('enter')">✏️ Introducere</div>
+  <div class="tab" onclick="switchTab('records')">📋 Date</div>
+  <div class="tab" onclick="switchTab('export')">📤 Export</div>
+</div>
+
+<!-- PAGE: ENTER -->
+<div class="page active" id="page-enter">
+  <div id="formContainer"></div>
+  <button class="btn btn-success" id="saveBtn" onclick="requestConfirm()" style="display:none">✅ Salvează înregistrarea</button>
+</div>
+
+<!-- PAGE: RECORDS -->
+<div class="page" id="page-records">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Caută..." oninput="renderRecords()">
+  </div>
+  <div class="filter-bar" id="filterBar"></div>
+  <div id="recordsList"></div>
+</div>
+
+<!-- PAGE: EXPORT -->
+<div class="page" id="page-export">
+  <div class="card">
+    <div class="card-title">☁️ Google Sheets</div>
+    <div id="sheetsStatus"></div>
+    <div id="sheetsSetup" style="display:none">
+      <div class="setup-step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Creează un Google Sheet nou</strong>Dă-i un nume (ex: "Zboruri")</div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Extensions → Apps Script → lipește codul:</strong>
+          <div class="code-block">function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet()
+                  .getActiveSheet();
+    if (data.action === 'init') {
+      sheet.clearContents();
+      sheet.appendRow(data.headers);
+      var r = sheet.getRange(1,1,1,data.headers.length);
+      r.setFontWeight('bold');
+      r.setBackground('#4a86e8');
+      r.setFontColor('#ffffff');
+      return ok({done:true});
+    }
+    if (data.action === 'append') {
+      data.rows.forEach(function(r){sheet.appendRow(r);});
+      return ok({added:data.rows.length});
+    }
+  } catch(err) { return ok({error:err.message}); }
+}
+function doGet(e) { return ok({status:'alive'}); }
+function ok(d) {
+  return ContentService
+    .createTextOutput(JSON.stringify(d))
+    .setMimeType(ContentService.MimeType.JSON);
+}</div>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>Deploy → New deployment → Web app</strong>Execute as: <em>Me</em> · Access: <em>Anyone</em> → Deploy → copiază URL</div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">4</div>
+        <div class="step-text"><strong>Lipește URL-ul mai jos</strong></div>
+      </div>
+      <label>URL Apps Script</label>
+      <input type="text" id="sheetsUrlInput" placeholder="https://script.google.com/macros/s/...">
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-outline" onclick="document.getElementById('sheetsSetup').style.display='none'">Anulează</button>
+        <button class="btn btn-primary" onclick="saveSheetsUrl()">💾 Salvează</button>
+      </div>
+    </div>
+    <div id="sheetsConnected" style="display:none">
+      <div class="export-stat"><span class="stat-label">Status</span><span class="stat-value" style="color:var(--success)">✅ Conectat</span></div>
+      <div class="export-stat"><span class="stat-label">Nesincronizate</span><span class="stat-value" id="pendingCount">0</span></div>
+      <button class="btn btn-primary" onclick="syncToSheets(false)" style="margin-top:10px">☁️ Sincronizează acum</button>
+      <button class="btn btn-outline" onclick="showSheetsSetup()" style="margin-top:6px">⚙️ Modifică URL</button>
+      <div class="tip-box">
+        <strong>Export Excel din Google Sheets:</strong><br>
+        Deschide Sheet-ul → <strong>File → Download → Microsoft Excel (.xlsx)</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Sumar</div>
+    <div class="export-stat"><span class="stat-label">Total înregistrări</span><span class="stat-value" id="expTotal">0</span></div>
+    <div class="export-stat"><span class="stat-label">Prima înregistrare</span><span class="stat-value" id="expFirst">—</span></div>
+    <div class="export-stat"><span class="stat-label">Ultima înregistrare</span><span class="stat-value" id="expLast">—</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Export local</div>
+    <button class="btn btn-success" onclick="exportExcelAndShare()">📊 Excel + Distribuie</button>
+    <button class="btn btn-outline" onclick="exportCSV()" style="margin-top:8px">📄 CSV</button>
+    <button class="btn btn-outline" onclick="exportJSON()" style="margin-top:8px">💾 Backup JSON</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Import backup</div>
+    <label for="importFile" class="btn btn-outline" style="cursor:pointer;margin-top:0;display:flex">📂 Încarcă backup JSON</label>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+  </div>
+
+  <div class="card">
+    <div class="card-title">Cont utilizator</div>
+    <button class="btn btn-outline" onclick="openChangeUser()">👤 Schimbă utilizatorul</button>
+    <button class="btn btn-danger" style="margin-top:8px" onclick="resetAll()">🗑️ Șterge toate datele</button>
+  </div>
+</div>
+
+<!-- MODAL: FIRST TIME USERNAME -->
+<div id="firstTimeScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:600;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px 24px;width:100%;max-width:380px;text-align:center;">
+    <div style="font-size:56px;margin-bottom:16px;">✈️</div>
+    <h2 style="font-size:22px;font-weight:800;margin-bottom:10px;">Bun venit!</h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:22px;line-height:1.7;">
+      Introdu-ți numele. Va apărea pe fiecare înregistrare în Google Sheets.
+    </p>
+    <input type="text" id="firstNameInput" placeholder="Numele tău (ex: Ion Popescu)"
+           style="text-align:center;font-size:16px;margin-bottom:16px;"
+           oninput="document.getElementById('namePreview').textContent=this.value||'...'"
+           onkeydown="if(event.key==='Enter') confirmFirstName()">
+    <div id="namePreview" style="font-size:28px;font-weight:900;color:var(--accent);min-height:40px;margin:0 0 18px;">...</div>
+    <button class="btn btn-primary" onclick="confirmFirstName()">✅ Continuă</button>
+  </div>
+</div>
+
+<!-- MODAL: CHANGE USER -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">👤 Utilizator curent</div>
+    <div id="userModalCurrentSection" style="margin-bottom:16px"></div>
+    <label>Schimbă numele</label>
+    <input type="text" id="changeNameInput" placeholder="Introdu numele tău..."
+           onkeydown="if(event.key==='Enter') confirmChangeName()">
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-outline" onclick="closeModal('userModal')">Anulează</button>
+      <button class="btn btn-primary" onclick="confirmChangeName()">✅ Confirmă</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRM BEFORE SAVE -->
+<div class="modal-overlay center" id="confirmModal">
+  <div class="modal">
+    <div class="modal-title" style="margin-bottom:6px">📋 Confirmă datele introduse</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Verifică și apasă <strong style="color:var(--success)">Da, salvează</strong> sau <strong style="color:var(--danger)">Nu, modifică</strong>.</p>
+    <div id="confirmContent"></div>
+    <div class="row" style="margin-top:18px">
+      <button class="btn btn-outline" id="confirmNoBtn" onclick="closeModal('confirmModal')">✖️ Nu, modifică</button>
+      <button class="btn btn-success" id="confirmYesBtn" onclick="doSaveEntry()">✔️ Da, salvează</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: VIEW ENTRY -->
+<div class="modal-overlay" id="entryModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="entryModalTitle">Înregistrare</div>
+    <div id="entryModalContent"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn btn-danger btn-sm" onclick="deleteEntry()" style="flex:.6">🗑️ Șterge</button>
+      <button class="btn btn-outline" onclick="closeModal('entryModal')">Închide</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: SHARE -->
+<div class="modal-overlay" id="shareModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📤 Distribuie fișierul Excel</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:4px">Fișierul a fost descărcat. Trimite-l prin:</p>
+    <div class="share-grid">
+      <div class="share-btn" onclick="shareVia('whatsapp')"><span class="icon">💬</span>WhatsApp</div>
+      <div class="share-btn" onclick="shareVia('telegram')"><span class="icon">✈️</span>Telegram</div>
+      <div class="share-btn" onclick="shareVia('email')"><span class="icon">📧</span>Email</div>
+      <div class="share-btn" onclick="shareVia('drive')"><span class="icon">🗂️</span>Drive</div>
+      <div class="share-btn" onclick="shareVia('native')"><span class="icon">⬆️</span>Altele</div>
+      <div class="share-btn" onclick="closeModal('shareModal')"><span class="icon">✖️</span>Închide</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// PRECONFIGURED FIELDS — modifică doar aici dacă vrei să schimbi câmpurile
+// ══════════════════════════════════════════════════════════════════════════
+const PRESET_FIELDS = [
+  { id:'f_data',      name:'Data',                              type:'date',   required:true,  min:null, max:null, placeholder:'' },
+  { id:'f_zbor_h',    name:'Ore zbor (ore)',                    type:'number', required:true,  min:0,    max:null, placeholder:'ex: 1', step:1 },
+  { id:'f_zbor_m',    name:'Ore zbor (minute)',                 type:'number', required:true,  min:0,    max:59,   placeholder:'0-59',  step:1 },
+  { id:'f_aterizari', name:'Număr aterizări',                   type:'number', required:true,  min:0,    max:null, placeholder:'ex: 3', step:1 },
+  { id:'f_sol_h',     name:'Ore motoare sol (ore)',             type:'number', required:true,  min:0,    max:null, placeholder:'ex: 0', step:1 },
+  { id:'f_sol_m',     name:'Ore motoare sol (minute)',          type:'number', required:true,  min:0,    max:59,   placeholder:'0-59',  step:1 },
+  { id:'f_aux_h',     name:'Ore motor auxiliar (ore)',          type:'number', required:false, min:0,    max:null, placeholder:'ex: 0', step:1 },
+  { id:'f_aux_m',     name:'Ore motor auxiliar (minute)',       type:'number', required:false, min:0,    max:59,   placeholder:'0-59',  step:1 },
+  { id:'f_cicl1',     name:'Ciclii motor 1',                   type:'number', required:false, min:0,    max:null, placeholder:'',      step:1 },
+  { id:'f_cicl2',     name:'Ciclii motor 2',                   type:'number', required:false, min:0,    max:null, placeholder:'',      step:1 },
+  { id:'f_cicl_aux',  name:'Ciclii motor auxiliar',            type:'number', required:false, min:0,    max:null, placeholder:'',      step:1 },
+];
+
+// Grupuri vizuale pentru formular
+const FIELD_GROUPS = [
+  { label: 'Zbor', ids: ['f_data','f_zbor_h','f_zbor_m','f_aterizari'] },
+  { label: 'Motoare sol', ids: ['f_sol_h','f_sol_m'] },
+  { label: 'Motor auxiliar', ids: ['f_aux_h','f_aux_m'] },
+  { label: 'Ciclii', ids: ['f_cicl1','f_cicl2','f_cicl_aux'] },
+];
+
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwRWSnnAo8xGnyH4Eh0ndWqow9p63JUOCno8R19a3jSwSXQro0pWaFnnFXxPQq816Gr/exec';
+
+// ══ STATE ════════════════════════════════════════════════════════════════
+let state = { entries: [], sheetsUrl: SHEETS_URL, username: '' };
+let viewingEntryId = null;
+let activeUserFilter = null;
+let lastExportedFilename = '';
+let pendingEntry = null; // entry waiting for confirmation
+
+// ══ STORAGE ══════════════════════════════════════════════════════════════
+function save() {
+  try { localStorage.setItem('datacapture_v4', JSON.stringify(state)); } catch(e) {}
+}
+function load() {
+  try {
+    const raw = localStorage.getItem('datacapture_v4');
+    if (raw) {
+      const p = JSON.parse(raw);
+      state = { entries:[], sheetsUrl: SHEETS_URL, username:'', ...p };
+      state.sheetsUrl = SHEETS_URL; // always use hardcoded URL
+    }
+  } catch(e) {}
+}
+
+// ══ USERNAME ══════════════════════════════════════════════════════════════
+function initUserCheck() {
+  if (!state.username) {
+    const s = document.getElementById('firstTimeScreen');
+    s.style.display = 'flex';
+    setTimeout(() => document.getElementById('firstNameInput').focus(), 300);
+  } else {
+    updateUserChip();
+  }
+}
+function confirmFirstName() {
+  const val = document.getElementById('firstNameInput').value.trim();
+  if (!val) { document.getElementById('firstNameInput').focus(); return; }
+  state.username = val; save();
+  document.getElementById('firstTimeScreen').style.display = 'none';
+  updateUserChip();
+  toast('Bun venit, ' + val + '! ✈️');
+}
+function openChangeUser() {
+  document.getElementById('changeNameInput').value = state.username;
+  const initials = getInitials(state.username);
+  document.getElementById('userModalCurrentSection').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;">
+      <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;">${initials}</div>
+      <div>
+        <div style="font-weight:700;font-size:15px;">${escH(state.username)}</div>
+        <div style="font-size:12px;color:var(--muted);">${state.entries.filter(e=>e._user===state.username).length} înregistrări ale tale</div>
+      </div>
+    </div>`;
+  openModal('userModal');
+  setTimeout(() => document.getElementById('changeNameInput').focus(), 200);
+}
+function confirmChangeName() {
+  const val = document.getElementById('changeNameInput').value.trim();
+  if (!val) return;
+  state.username = val; save();
+  closeModal('userModal'); updateUserChip();
+  toast('Nume schimbat: ' + val);
+}
+function updateUserChip() {
+  const initials = getInitials(state.username);
+  const circle = document.getElementById('avatarCircle');
+  circle.textContent = initials || '👤';
+  circle.className = 'avatar-circle' + (state.username ? '' : ' unset');
+  document.getElementById('avatarName').textContent = state.username || 'Setează';
+}
+function getInitials(name) {
+  if (!name) return '';
+  return name.trim().split(/\s+/).map(w=>w[0].toUpperCase()).slice(0,2).join('');
+}
+
+// ══ TABS ══════════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['enter','records','export'][i] === name);
+  });
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (name === 'enter') renderForm();
+  if (name === 'records') { buildFilterBar(); renderRecords(); }
+  if (name === 'export') { renderExportStats(); renderSheetsStatus(); }
+}
+
+// ══ TOAST ═════════════════════════════════════════════════════════════════
+function toast(msg, type='success') {
+  const el = document.getElementById('toast');
+  el.textContent = ({success:'✅',error:'❌',warn:'⚠️'}[type]||'') + ' ' + msg;
+  el.className = 'toast ' + type + ' show';
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ══ FORM ══════════════════════════════════════════════════════════════════
+function renderForm() {
+  const el = document.getElementById('formContainer');
+  document.getElementById('saveBtn').style.display = 'flex';
+
+  // Build grouped HTML
+  const fieldMap = Object.fromEntries(PRESET_FIELDS.map(f => [f.id, f]));
+  let html = '<div class="card">';
+  const n = state.entries.length + 1;
+  html += `<div class="card-title">Înregistrare nouă <span style="color:var(--accent);font-size:12px">#${n}</span></div>`;
+
+  FIELD_GROUPS.forEach(group => {
+    html += `<div class="field-group-title">${group.label}</div>`;
+    group.ids.forEach(id => {
+      const f = fieldMap[id];
+      if (!f) return;
+      html += buildFieldHtml(f);
+    });
+  });
+
+  html += '</div>';
+  el.innerHTML = html;
+  attachEnterNav();
+}
+
+function buildFieldHtml(f) {
+  const req = f.required ? '<span class="req-star">*</span>' : '';
+  const ph = f.placeholder || '';
+  let attrs = `id="inp_${f.id}"`;
+  if (f.min !== null) attrs += ` min="${f.min}"`;
+  if (f.max !== null) attrs += ` max="${f.max}"`;
+  if (f.step) attrs += ` step="${f.step}"`;
+  if (ph) attrs += ` placeholder="${escH(ph)}"`;
+
+  let input = '';
+  if (f.type === 'date') {
+    input = `<input type="date" ${attrs}>`;
+  } else if (f.type === 'number') {
+    input = `<input type="number" inputmode="numeric" pattern="[0-9]*" ${attrs}>`;
+  }
+  return `<label>${escH(f.name)}${req}</label>${input}`;
+}
+
+// ══ ENTER NAVIGATION ══════════════════════════════════════════════════════
+function attachEnterNav() {
+  const inputs = Array.from(document.querySelectorAll('#formContainer input'));
+  inputs.forEach((el, i) => {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        // validate min/max on number fields before moving
+        if (el.type === 'number') {
+          const v = parseInt(el.value);
+          if (el.max && !isNaN(v) && v > parseInt(el.max)) {
+            el.value = el.max;
+          }
+          if (el.min !== '' && !isNaN(v) && v < parseInt(el.min)) {
+            el.value = el.min;
+          }
+        }
+        const next = inputs[i + 1];
+        if (next) { next.focus(); next.scrollIntoView({behavior:'smooth',block:'center'}); }
+        else requestConfirm();
+      }
+    });
+    // enforce integer on blur for number fields
+    if (el.type === 'number') {
+      el.addEventListener('blur', () => {
+        if (el.value !== '') {
+          let v = Math.floor(parseFloat(el.value));
+          if (el.max && v > parseInt(el.max)) v = parseInt(el.max);
+          if (el.min !== '' && v < parseInt(el.min)) v = parseInt(el.min);
+          el.value = isNaN(v) ? '' : v;
+        }
+      });
+    }
+  });
+}
+
+// ══ CONFIRM DIALOG ════════════════════════════════════════════════════════
+function requestConfirm() {
+  // Collect & validate first
+  const entry = { _id: 'e_' + Date.now(), _ts: new Date().toISOString(), _synced: false, _user: state.username, data: {} };
+  for (const f of PRESET_FIELDS) {
+    const el = document.getElementById('inp_' + f.id);
+    if (!el) continue;
+    const val = el.value.trim();
+    if (f.required && val === '') {
+      toast('Câmpul "' + f.name + '" este obligatoriu', 'error');
+      el.focus(); el.scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+    if (f.type === 'number' && val !== '') {
+      const num = parseInt(val);
+      if (f.max !== null && num > f.max) { toast(f.name + ': maxim ' + f.max, 'error'); el.focus(); return; }
+      if (f.min !== null && num < f.min) { toast(f.name + ': minim ' + f.min, 'error'); el.focus(); return; }
+      entry.data[f.id] = num;
+    } else {
+      entry.data[f.id] = val;
+    }
+  }
+  pendingEntry = entry;
+
+  // Build confirm content
+  const fieldMap = Object.fromEntries(PRESET_FIELDS.map(f => [f.id, f]));
+  let html = `<div class="confirm-row"><span class="confirm-label" style="color:var(--accent)">Utilizator</span><span class="confirm-value" style="color:var(--accent)">${escH(state.username||'—')}</span></div>`;
+
+  FIELD_GROUPS.forEach(group => {
+    const hasData = group.ids.some(id => entry.data[id] !== '' && entry.data[id] !== undefined);
+    if (!hasData) return;
+    html += `<div class="confirm-section">${group.label}</div>`;
+    group.ids.forEach(id => {
+      const f = fieldMap[id];
+      const v = entry.data[id];
+      if (v === '' || v === undefined) return;
+      let display = v;
+      if (f.type === 'date' && v) {
+        // format date nicely
+        const parts = v.split('-');
+        if (parts.length === 3) display = parts[2] + '/' + parts[1] + '/' + parts[0];
+      }
+      html += `<div class="confirm-row"><span class="confirm-label">${escH(f.name)}</span><span class="confirm-value">${escH(String(display))}</span></div>`;
+    });
+  });
+
+  document.getElementById('confirmContent').innerHTML = html;
+  openModal('confirmModal');
+
+  // Keyboard: Enter = save, Esc = cancel
+  document.getElementById('confirmYesBtn').focus();
+}
+
+// Listen Esc on confirm modal
+document.addEventListener('keydown', e => {
+  if (document.getElementById('confirmModal').classList.contains('open')) {
+    if (e.key === 'Escape') { closeModal('confirmModal'); }
+    if (e.key === 'Enter') { e.preventDefault(); doSaveEntry(); }
+  }
+});
+
+function doSaveEntry() {
+  if (!pendingEntry) return;
+  closeModal('confirmModal');
+  state.entries.unshift(pendingEntry);
+  pendingEntry = null;
+  save(); updateCount(); updateSyncDot();
+  toast('Înregistrare salvată! ✈️');
+  renderForm(); // reset form
+  // focus first input
+  setTimeout(() => {
+    const first = document.querySelector('#formContainer input');
+    if (first) first.focus();
+  }, 100);
+  // auto-sync
+  if (state.sheetsUrl) syncToSheets(true);
+}
+
+// ══ RECORDS ═══════════════════════════════════════════════════════════════
+function buildFilterBar() {
+  const users = [...new Set(state.entries.map(e => e._user).filter(Boolean))];
+  const bar = document.getElementById('filterBar');
+  if (users.length <= 1) { bar.innerHTML = ''; return; }
+  bar.innerHTML = `<div class="filter-chip ${!activeUserFilter?'active':''}" onclick="setFilter(null)">Toți</div>`
+    + users.map(u => `<div class="filter-chip ${activeUserFilter===u?'active':''}" onclick="setFilter('${escH(u)}')">${escH(u)}</div>`).join('');
+}
+function setFilter(u) { activeUserFilter = u; buildFilterBar(); renderRecords(); }
+
+function renderRecords() {
+  updateCount();
+  const el = document.getElementById('recordsList');
+  const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  let entries = state.entries;
+  if (activeUserFilter) entries = entries.filter(e => e._user === activeUserFilter);
+  if (q) entries = entries.filter(e => JSON.stringify(e).toLowerCase().includes(q));
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">${state.entries.length?'🔍':'📭'}</div><h3>${state.entries.length?'Niciun rezultat':'Nicio înregistrare'}</h3></div>`;
+    return;
+  }
+  el.innerHTML = entries.map(e => {
+    const ts = new Date(e._ts).toLocaleString('ro-RO',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const dateParts = (e.data.f_data||'').split('-');
+    const dateDisplay = dateParts.length===3 ? dateParts[2]+'/'+dateParts[1]+'/'+dateParts[0] : (e.data.f_data||'—');
+    const n = state.entries.length - state.entries.indexOf(e);
+    const syncB = e._synced
+      ? '<span class="sync-badge synced">☁️ sync</span>'
+      : '<span class="sync-badge pending">⏳ local</span>';
+    return `<div class="entry-card" onclick="viewEntry('${e._id}')">
+      <div class="entry-header">
+        <div class="entry-meta">
+          <span class="entry-id">#${n} ${syncB}</span>
+          <span class="entry-user-tag">👤 ${escH(e._user||'—')}</span>
+        </div>
+        <div>
+          <div class="entry-date-label">📅 ${dateDisplay}</div>
+          <div style="font-size:11px;color:var(--muted);text-align:right">${ts}</div>
+        </div>
+      </div>
+      <div class="entry-preview">
+        <div class="entry-chip"><strong>Zbor: </strong>${e.data.f_zbor_h||0}h ${e.data.f_zbor_m||0}m</div>
+        <div class="entry-chip"><strong>Aterizări: </strong>${e.data.f_aterizari||0}</div>
+        <div class="entry-chip"><strong>Sol: </strong>${e.data.f_sol_h||0}h ${e.data.f_sol_m||0}m</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function viewEntry(id) {
+  viewingEntryId = id;
+  const e = state.entries.find(x => x._id === id);
+  if (!e) return;
+  const n = state.entries.length - state.entries.indexOf(e);
+  document.getElementById('entryModalTitle').textContent = 'Înregistrarea #' + n;
+  const fieldMap = Object.fromEntries(PRESET_FIELDS.map(f => [f.id, f]));
+  let html = `<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Utilizator: <strong style="color:var(--accent)">${escH(e._user||'—')}</strong> · ${e._synced?'☁️ Sincronizat':'⏳ Nesincronizat'}</p>`;
+  FIELD_GROUPS.forEach(group => {
+    html += `<div class="confirm-section">${group.label}</div>`;
+    group.ids.forEach(id => {
+      const f = fieldMap[id];
+      const v = e.data[id];
+      let display = (v === '' || v === undefined || v === null) ? '—' : v;
+      if (f.type === 'date' && display !== '—') {
+        const p = display.split('-');
+        if (p.length===3) display = p[2]+'/'+p[1]+'/'+p[0];
+      }
+      html += `<div class="confirm-row"><span class="confirm-label">${escH(f.name)}</span><span class="confirm-value">${escH(String(display))}</span></div>`;
+    });
+  });
+  document.getElementById('entryModalContent').innerHTML = html;
+  openModal('entryModal');
+}
+
+function deleteEntry() {
+  if (!viewingEntryId) return;
+  if (!confirm('Ștergi această înregistrare?')) return;
+  state.entries = state.entries.filter(e => e._id !== viewingEntryId);
+  save(); closeModal('entryModal'); renderRecords();
+  toast('Înregistrare ștearsă');
+}
+
+// ══ GOOGLE SHEETS ══════════════════════════════════════════════════════════
+function renderSheetsStatus() {
+  const setup = document.getElementById('sheetsSetup');
+  const connected = document.getElementById('sheetsConnected');
+  const status = document.getElementById('sheetsStatus');
+  if (!state.sheetsUrl) {
+    status.innerHTML = `<p style="font-size:13px;color:var(--muted);margin-bottom:10px">Conectează cu Google Sheets pentru sync automat.</p>
+    <button class="btn btn-primary" onclick="showSheetsSetup()">🔗 Configurează</button>`;
+    setup.style.display = 'none'; connected.style.display = 'none';
+  } else {
+    status.innerHTML = '';
+    setup.style.display = 'none'; connected.style.display = 'block';
+    document.getElementById('pendingCount').textContent = state.entries.filter(e => !e._synced).length;
+  }
+  updateSyncDot();
+}
+function showSheetsSetup() {
+  document.getElementById('sheetsStatus').innerHTML = '';
+  document.getElementById('sheetsSetup').style.display = 'block';
+  document.getElementById('sheetsConnected').style.display = 'none';
+  if (state.sheetsUrl) document.getElementById('sheetsUrlInput').value = state.sheetsUrl;
+}
+async function saveSheetsUrl() {
+  const url = document.getElementById('sheetsUrlInput').value.trim();
+  if (!url.includes('script.google.com')) { toast('URL invalid', 'error'); return; }
+  state.sheetsUrl = url; save();
+  await initSheetsHeaders();
+  renderSheetsStatus();
+  toast('Conectat!');
+  await syncToSheets(false);
+}
+async function initSheetsHeaders() {
+  if (!state.sheetsUrl) return;
+  const headers = ['#', 'Data/Ora salvare', 'Utilizator', ...PRESET_FIELDS.map(f => f.name)];
+  try {
+    await fetch(state.sheetsUrl, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'init', headers })
+    });
+  } catch(e) { console.warn('Init failed:', e); }
+}
+async function syncToSheets(silent=false) {
+  if (!state.sheetsUrl) { if (!silent) toast('Configurează Google Sheets mai întâi', 'error'); return; }
+  const unsynced = state.entries.filter(e => !e._synced);
+  if (!unsynced.length) { if (!silent) toast('Toate datele sunt sincronizate ✓'); return; }
+  setSyncDot('syncing');
+  if (!silent) toast('Sincronizez ' + unsynced.length + ' înregistrări...', 'warn');
+  const rows = [...unsynced].reverse().map((e, i) => {
+    const n = state.entries.length - state.entries.indexOf(e);
+    const row = [n, new Date(e._ts).toLocaleString('ro-RO'), e._user||'—'];
+    for (const f of PRESET_FIELDS) {
+      const v = e.data[f.id];
+      row.push(v !== undefined && v !== '' ? v : '');
+    }
+    return row;
+  });
+  try {
+    await fetch(state.sheetsUrl, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'append', rows })
+    });
+    unsynced.forEach(e => { e._synced = true; });
+    save(); setSyncDot('ok');
+    if (!silent) toast('Sincronizat! ' + rows.length + ' înregistrări ☁️');
+    renderSheetsStatus();
+    if (document.getElementById('page-records').classList.contains('active')) renderRecords();
+  } catch(e) {
+    setSyncDot('err');
+    if (!silent) toast('Eroare sync', 'error');
+  }
+}
+function setSyncDot(s) { document.getElementById('syncDot').className = 'sync-dot ' + s; }
+function updateSyncDot() {
+  if (!state.sheetsUrl) { setSyncDot(''); return; }
+  setSyncDot(state.entries.filter(e => !e._synced).length > 0 ? 'err' : 'ok');
+}
+
+// ══ EXPORT ════════════════════════════════════════════════════════════════
+function renderExportStats() {
+  document.getElementById('expTotal').textContent = state.entries.length;
+  if (state.entries.length) {
+    const s = [...state.entries].sort((a,b) => a._ts.localeCompare(b._ts));
+    document.getElementById('expFirst').textContent = new Date(s[0]._ts).toLocaleDateString('ro-RO');
+    document.getElementById('expLast').textContent = new Date(s[s.length-1]._ts).toLocaleDateString('ro-RO');
+  } else {
+    document.getElementById('expFirst').textContent = '—';
+    document.getElementById('expLast').textContent = '—';
+  }
+  renderSheetsStatus();
+}
+function buildTableData() {
+  const headers = ['#', 'Data/Ora salvare', 'Utilizator', ...PRESET_FIELDS.map(f => f.name)];
+  const rows = [...state.entries].reverse().map((e, i) => {
+    const row = [i+1, new Date(e._ts).toLocaleString('ro-RO'), e._user||'—'];
+    for (const f of PRESET_FIELDS) {
+      const v = e.data[f.id];
+      row.push(v !== undefined && v !== '' ? v : '');
+    }
+    return row;
+  });
+  return { headers, rows };
+}
+function exportExcelAndShare() {
+  if (!state.entries.length) { toast('Nu există date de exportat', 'error'); return; }
+  const {headers, rows} = buildTableData();
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map(h => ({wch: Math.max(h.length+4, 14)}));
+  XLSX.utils.book_append_sheet(wb, ws, 'Zboruri');
+  const filename = 'zboruri_' + new Date().toISOString().slice(0,10) + '.xlsx';
+  if (navigator.canShare) {
+    const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const file = new File([blob], filename, {type: blob.type});
+    if (navigator.canShare({files:[file]})) {
+      navigator.share({files:[file], title:'Zboruri Export'})
+        .then(() => toast('Distribuit!'))
+        .catch(err => { if (err.name !== 'AbortError') { XLSX.writeFile(wb, filename); lastExportedFilename=filename; openModal('shareModal'); }});
+      return;
+    }
+  }
+  XLSX.writeFile(wb, filename);
+  lastExportedFilename = filename;
+  openModal('shareModal');
+}
+function shareVia(p) {
+  const text = encodeURIComponent('Export zboruri: ' + (lastExportedFilename||'zboruri.xlsx'));
+  const urls = {whatsapp:'https://wa.me/?text='+text, telegram:'https://t.me/share/url?url=&text='+text, email:'mailto:?subject=Export Zboruri&body='+text, drive:'https://drive.google.com'};
+  if (p==='native') { if (navigator.share) navigator.share({title:'Export Zboruri',text:'Fișierul a fost descărcat.'}).catch(()=>{}); else toast('Share nativ indisponibil','warn'); return; }
+  closeModal('shareModal');
+  if (urls[p]) window.open(urls[p],'_blank');
+}
+function exportCSV() {
+  if (!state.entries.length) { toast('Nu există date', 'error'); return; }
+  const {headers, rows} = buildTableData();
+  const csv = [headers,...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  download('zboruri_'+new Date().toISOString().slice(0,10)+'.csv', csv, 'text/csv');
+  toast('CSV descărcat!');
+}
+function exportJSON() {
+  download('backup_'+new Date().toISOString().slice(0,10)+'.json', JSON.stringify(state,null,2), 'application/json');
+  toast('Backup descărcat!');
+}
+function importData(event) {
+  const f = event.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      if (!d.entries) throw new Error();
+      if (!confirm(`Importezi ${d.entries.length} înregistrări? Datele existente vor fi înlocuite.`)) return;
+      state = { sheetsUrl: SHEETS_URL, username: state.username, ...d, sheetsUrl: SHEETS_URL };
+      save(); renderRecords(); updateCount(); toast('Date importate!');
+    } catch { toast('Fișier invalid', 'error'); }
+  };
+  r.readAsText(f); event.target.value = '';
+}
+function resetAll() {
+  if (!confirm('Ștergi TOATE datele? Nu poate fi anulat.')) return;
+  state = { entries:[], sheetsUrl: SHEETS_URL, username: state.username };
+  save(); renderForm(); updateCount(); updateSyncDot();
+  toast('Date șterse');
+}
+
+// ══ UTILS ═════════════════════════════════════════════════════════════════
+function escH(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function download(fn, content, type) { const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type})); a.download=fn; a.click(); }
+function updateCount() { document.getElementById('recCount').textContent = state.entries.length + ' înreg.'; }
+
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ══ INIT ══════════════════════════════════════════════════════════════════
+load();
+renderForm();
+updateCount();
+updateSyncDot();
+updateUserChip();
+initUserCheck();
+</script>
+</body>
+</html>
