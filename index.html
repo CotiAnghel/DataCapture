@@ -2,7 +2,7 @@
 <html lang="ro">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, interactive-widget=resizes-content">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>DataCapture ✈️</title>
@@ -37,6 +37,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
 
 .page{display:none;padding:16px;padding-bottom:90px;}
+.page.active{padding-bottom:max(90px, calc(100dvh - var(--vvh, 100dvh) + 90px));}
 .page.active{display:block;}
 
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
@@ -1106,6 +1107,49 @@ document.querySelectorAll('.overlay').forEach(function(el) {
     if (e.target === el) el.classList.remove('open');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// SCROLL ACTIVE FIELD ABOVE KEYBOARD (Android fix)
+// ═══════════════════════════════════════════════════════════════════
+(function() {
+  // On Android, when keyboard opens the viewport shrinks.
+  // We listen for visualViewport resize and scroll the focused element into view.
+  if (!window.visualViewport) return;
+
+  var scrollTimer = null;
+
+  function scrollToFocused() {
+    var el = document.activeElement;
+    if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT')) return;
+
+    // Use a small delay to let the keyboard finish animating
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(function() {
+      var rect = el.getBoundingClientRect();
+      var vvHeight = window.visualViewport.height;
+      var margin = 16; // px gap between field and top of keyboard
+
+      // If the bottom of the field is below the visible viewport
+      if (rect.bottom > vvHeight - margin) {
+        var scrollBy = rect.bottom - vvHeight + margin + rect.height;
+        window.scrollBy({ top: scrollBy, behavior: 'smooth' });
+      }
+
+      // Also use scrollIntoView as a fallback
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+  }
+
+  // Fires when keyboard opens/closes (viewport height changes)
+  window.visualViewport.addEventListener('resize', scrollToFocused);
+
+  // Also fires on every focus change
+  document.addEventListener('focusin', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+      scrollToFocused();
+    }
+  });
+})();
 
 // ═══════════════════════════════════════════════════════════════════
 // INIT
