@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, interactive-widget=resizes-visual">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DataCapture">
+<meta name="theme-color" content="#0f1117">
+<link rel="manifest" href="manifest.json">
+<title>DataCapture</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--card:#22263a;--border:#2e3350;
+  --accent:#5b7fff;--accent2:#a78bfa;--success:#34d399;
+  --danger:#f87171;--warn:#fbbf24;--text:#e8eaf6;--muted:#7b82a8;
+  --hh:52px; /* header height */
+  --th:44px; /* tabs height */
+  --font:'Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;}
+
+/* ── LAYOUT ── */
+#shell{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  display:flex;flex-direction:column;
+  background:var(--bg);
+  /* 100dvh se actualizeaza cand apare keypad-ul pe Android */
+  height:100dvh;
+}
+header{
+  flex-shrink:0;height:var(--hh);
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 16px;display:flex;align-items:center;justify-content:space-between;
+  position:relative;z-index:10;
+}
+.tabs-bar{
+  flex-shrink:0;height:var(--th);
+  display:flex;background:var(--surface);border-bottom:1px solid var(--border);
+}
+.tab{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;
+  border-bottom:2px solid transparent;transition:all .2s;user-select:none;
+}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* content area scrolls */
+#content{flex:1;overflow:hidden;position:relative;}
+.page{
+  position:absolute;inset:0;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:14px 14px 24px;
+  /* scroll-padding-bottom rezerva spatiu pt ultimele campuri */
+  scroll-padding-bottom:32px;
+  display:none;
+}
+.page.active{display:block;}
+
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:12px;}
+.card-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:12px;}
+.gtitle{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);margin:14px 0 4px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+
+/* ── INPUTS ── */
+label{font-size:13px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;margin-top:10px;}
+label:first-child{margin-top:0;}
+input[type=number],input[type=text]{
+  width:100%;background:var(--surface);border:1.5px solid var(--border);
+  border-radius:8px;color:var(--text);font-family:var(--font);font-size:16px;
+  padding:12px 14px;outline:none;transition:border-color .2s;
+  -webkit-appearance:none;appearance:none;
+}
+input:focus{border-color:var(--accent);}
+
+/* date row */
+.drow{display:flex;align-items:center;gap:5px;}
+.drow input{text-align:center;font-size:17px;font-weight:700;padding:12px 4px;flex:1;min-width:0;}
+.drow input.yr{flex:1.8;}
+.dsep{color:var(--muted);font-size:18px;font-weight:700;flex-shrink:0;}
+.dhint{font-size:12px;color:var(--muted);margin-top:4px;min-height:17px;}
+
+/* ── BUTTONS ── */
+.btn{display:flex;align-items:center;justify-content:center;gap:7px;padding:13px 18px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;user-select:none;width:100%;margin-top:8px;transition:opacity .15s;}
+.btn:active{opacity:.75;}
+.btn-success{background:var(--success);color:#0f1117;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-red{background:rgba(248,113,113,.12);border:1.5px solid rgba(248,113,113,.3);color:var(--danger);}
+.row{display:flex;gap:8px;}.row>.btn{flex:1;margin-top:0;}
+.req{color:var(--danger);}
+
+/* sub-tabs agregate */
+.sub-tabs{display:flex;gap:10px;margin-bottom:14px;}
+.stab{flex:1;padding:18px 8px;border-radius:12px;border:1.5px solid var(--border);background:var(--card);
+  display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;font-size:14px;font-weight:700;}
+.stab .ic{font-size:30px;}
+.stab.dem{border-color:rgba(248,113,113,.4);color:var(--danger);}
+.stab.mon{border-color:rgba(52,211,153,.4);color:var(--success);}
+
+/* record cards */
+.ecard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:9px;cursor:pointer;}
+.ecard:active{border-color:var(--accent);}
+.etop{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;}
+.emeta{display:flex;flex-direction:column;gap:2px;}
+.enum{font-size:11px;color:var(--muted);font-weight:600;}
+.euser{font-size:11px;font-weight:700;color:var(--accent);}
+.edate{font-size:13px;font-weight:700;}
+.ets{font-size:11px;color:var(--muted);text-align:right;}
+.echips{margin-top:7px;display:flex;flex-wrap:wrap;gap:5px;}
+.chip{font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chip strong{color:var(--muted);}
+.sb{font-size:10px;padding:2px 5px;border-radius:4px;font-weight:700;margin-left:3px;}
+.sb.p{background:rgba(251,191,36,.15);color:var(--warn);border:1px solid rgba(251,191,36,.3);}
+.sb.s{background:rgba(52,211,153,.1);color:var(--success);border:1px solid rgba(52,211,153,.3);}
+
+/* rtabs */
+.rtabs{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;}
+.rtab{flex:1;padding:9px 4px;text-align:center;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;background:var(--card);}
+.rtab.on{background:var(--accent);color:#fff;}
+
+/* filter bar */
+.fbar{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;}
+.fc{font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.fc.on{background:rgba(91,127,255,.15);color:var(--accent);border-color:rgba(91,127,255,.4);}
+
+.empty{text-align:center;padding:50px 20px;color:var(--muted);}
+.empty-ic{font-size:42px;margin-bottom:10px;}
+.empty h3{font-size:16px;color:var(--text);margin-bottom:4px;}
+
+/* header chips */
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+.sync-dot.ok{background:var(--success);}
+.sync-dot.err{background:var(--danger);}
+.sync-dot.spin{background:var(--warn);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.uc{display:flex;align-items:center;gap:6px;background:rgba(91,127,255,.1);border:1px solid rgba(91,127,255,.25);border-radius:20px;padding:5px 10px 5px 6px;cursor:pointer;}
+.av{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0;}
+.av.u{background:var(--card);border:1.5px dashed var(--border);color:var(--muted);}
+.un{font-size:12px;font-weight:700;color:var(--accent);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rc{font-size:12px;color:var(--muted);background:var(--card);border:1px solid var(--border);padding:4px 9px;border-radius:20px;}
+
+/* export stats */
+.xs{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);}
+.xs:last-child{border-bottom:none;}
+.xsl{font-size:13px;color:var(--muted);}
+.xsv{font-size:14px;font-weight:700;}
+
+/* ── OVERLAYS ── */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:none;align-items:flex-end;justify-content:center;}
+.ov.open{display:flex;}
+.ov.center{align-items:center;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px 12px 0 0;padding:20px 16px;width:100%;max-width:600px;max-height:90svh;overflow-y:auto;}
+.ov.center .modal{border-radius:12px;max-width:400px;margin:16px;}
+.mh{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px;}
+.mt{font-size:16px;font-weight:700;margin-bottom:12px;}
+.crow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
+.crow:last-child{border-bottom:none;}
+.cl{font-size:13px;color:var(--muted);flex:1;}
+.cv{font-size:14px;font-weight:700;text-align:right;flex:1;}
+.csect{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);padding:8px 0 2px;border-bottom:1px solid var(--border);margin-top:2px;}
+
+/* toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--card);border:1px solid var(--border);border-radius:30px;padding:10px 18px;font-size:14px;font-weight:600;z-index:999;transition:transform .25s;white-space:nowrap;pointer-events:none;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.ok{border-color:var(--success);color:var(--success);}
+.toast.er{border-color:var(--danger);color:var(--danger);}
+.toast.wn{border-color:var(--warn);color:var(--warn);}
+
+/* codeblock */
+.cb{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:monospace;font-size:11px;color:var(--accent2);margin-top:8px;overflow-x:auto;white-space:pre;line-height:1.7;}
+.tip{background:rgba(91,127,255,.07);border:1px solid rgba(91,127,255,.2);border-radius:8px;padding:11px 13px;font-size:13px;color:var(--muted);line-height:1.6;margin-top:8px;}
+.tip strong{color:var(--text);}
+
+input[type=text]::placeholder,input[type=number]::placeholder{color:var(--muted);}
+::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* search */
+.swrap{position:relative;margin-bottom:10px;}
+.swrap input{padding-left:36px;}
+.sic{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);}
+</style>
+</head>
+<body>
+<div id="shell">
+
+<header>
+  <div style="font-size:17px;font-weight:700">Data<span style="color:var(--accent)">Capture</span> ✈️</div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="sync-dot" id="sdot"></div>
+    <button id="installBtn" onclick="installApp()" style="display:none;background:rgba(91,127,255,.15);border:1px solid rgba(91,127,255,.3);color:var(--accent);border-radius:20px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇️ Instalează</button>
+    <div class="uc" onclick="openUM()">
+      <div class="av u" id="avEl">👤</div>
+      <div class="un" id="avName">Setează</div>
+    </div>
+    <div class="rc" id="rcnt">0</div>
+  </div>
+</header>
+
+<div class="tabs-bar">
+  <div class="tab active" onclick="goTab('zbor')">✈️ Zbor</div>
+  <div class="tab" onclick="goTab('agr')">🔧 Agregate</div>
+  <div class="tab" onclick="goTab('rec')">📋 Date</div>
+  <div class="tab" onclick="goTab('exp')">📤 Export</div>
+</div>
+
+<div id="content">
+
+<!-- ═══ ZBOR ═══ -->
+<div class="page active" id="page-zbor">
+  <div id="zForm"></div>
+  <button class="btn btn-success" id="zBtn" onclick="zConfirm()">✅ Salvează zborul</button>
+</div>
+
+<!-- ═══ AGREGATE ═══ -->
+<div class="page" id="page-agr">
+  <div id="agrSel">
+    <div class="sub-tabs">
+      <div class="stab dem" onclick="openAgr('dem')"><span class="ic">🔴</span>Demontări</div>
+      <div class="stab mon" onclick="openAgr('mon')"><span class="ic">🟢</span>Montări</div>
+    </div>
+    <p style="font-size:13px;color:var(--muted);text-align:center">Selectează tipul de înregistrare</p>
+  </div>
+  <div id="agrForm" style="display:none">
+    <div id="agrFields"></div>
+    <button class="btn btn-success" onclick="aConfirm()">✅ Salvează</button>
+  </div>
+</div>
+
+<!-- ═══ DATE ═══ -->
+<div class="page" id="page-rec">
+  <div class="rtabs">
+    <div class="rtab on" onclick="setRT('zbor',this)">✈️ Zboruri</div>
+    <div class="rtab" onclick="setRT('dem',this)">🔴 Demontări</div>
+    <div class="rtab" onclick="setRT('mon',this)">🟢 Montări</div>
+  </div>
+  <div class="swrap"><span class="sic">🔍</span><input type="text" id="srch" placeholder="Caută..." oninput="renderRec()"></div>
+  <div class="fbar" id="fbar"></div>
+  <div id="recList"></div>
+</div>
+
+<!-- ═══ EXPORT ═══ -->
+<div class="page" id="page-exp">
+  <div class="card">
+    <div class="card-title">☁️ Google Sheets</div>
+    <div id="shStatus"></div>
+    <div id="shSetup" style="display:none">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Lipește codul de mai jos în Apps Script, fă New Deployment ca Web App (Execute as: Me, Anyone) și pune URL-ul aici.</p>
+      <div class="cb">function doPost(e) {
+  try {
+    var body = e.postData.contents;
+    var d = JSON.parse(body);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = d.sheet
+      ? (ss.getSheetByName(d.sheet) || ss.insertSheet(d.sheet))
+      : ss.getActiveSheet();
+    if (d.action === 'init') {
+      sh.clearContents();
+      sh.appendRow(d.headers);
+      var rng = sh.getRange(1,1,1,d.headers.length);
+      rng.setFontWeight('bold');
+      rng.setBackground('#4a86e8');
+      rng.setFontColor('#ffffff');
+      return out({done:true});
+    }
+    if (d.action === 'append') {
+      d.rows.forEach(function(r){ sh.appendRow(r); });
+      return out({added:d.rows.length});
+    }
+  } catch(err) {
+    return out({error:err.message});
+  }
+}
+function doGet(e) { return out({status:'alive'}); }
+function out(d) {
+  return ContentService
+    .createTextOutput(JSON.stringify(d))
+    .setMimeType(ContentService.MimeType.JSON);
+}</div>
+      <label style="margin-top:12px">URL Web App</label>
+      <input type="text" id="shUrl" placeholder="https://script.google.com/macros/s/...">
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-outline" onclick="document.getElementById('shSetup').style.display='none'">Anulează</button>
+        <button class="btn btn-primary" onclick="saveShUrl()">💾 Salvează</button>
+      </div>
+    </div>
+    <div id="shConn" style="display:none">
+      <div class="xs"><span class="xsl">Status</span><span class="xsv" style="color:var(--success)">✅ Conectat</span></div>
+      <div class="xs"><span class="xsl">Nesincronizate</span><span class="xsv" id="pendN">0</span></div>
+      <button class="btn btn-primary" onclick="syncAll(false)" style="margin-top:10px">☁️ Sincronizează acum</button>
+      <button class="btn btn-outline" onclick="showShSetup()" style="margin-top:6px">⚙️ Modifică URL</button>
+      <div class="tip"><strong>Export Excel din Google Sheets:</strong><br>File → Download → Microsoft Excel (.xlsx)</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Sumar</div>
+    <div class="xs"><span class="xsl">Zboruri</span><span class="xsv" id="xZ">0</span></div>
+    <div class="xs"><span class="xsl">Demontări</span><span class="xsv" id="xD">0</span></div>
+    <div class="xs"><span class="xsl">Montări</span><span class="xsv" id="xM">0</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Export local</div>
+    <button class="btn btn-success" onclick="expXL()">📊 Excel (toate tabelele)</button>
+    <button class="btn btn-outline" onclick="expJSON()" style="margin-top:8px">💾 Backup JSON</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Import / Reset</div>
+    <label for="impF" class="btn btn-outline" style="cursor:pointer;margin-top:0;display:flex">📂 Încarcă backup JSON</label>
+    <input type="file" id="impF" accept=".json" style="display:none" onchange="impData(event)">
+    <button class="btn btn-red" style="margin-top:8px" onclick="resetAll()">🗑️ Șterge toate datele</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Utilizator</div>
+    <button class="btn btn-outline" onclick="openUM()">👤 Schimbă numele</button>
+  </div>
+</div>
+
+</div><!-- #content -->
+</div><!-- #shell -->
+
+<!-- ═══ FIRST TIME ═══ -->
+<div id="ftScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:500;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:30px 22px;width:100%;max-width:360px;text-align:center;">
+    <div style="font-size:52px;margin-bottom:14px">✈️</div>
+    <h2 style="font-size:21px;font-weight:800;margin-bottom:8px">Bun venit!</h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.7">Introdu numele tău. Va apărea pe fiecare înregistrare în Google Sheets.</p>
+    <input type="text" id="ftName" placeholder="Numele tău" style="text-align:center;font-size:16px;margin-bottom:14px" onkeydown="if(event.key==='Enter')ftOk()">
+    <button class="btn btn-primary" onclick="ftOk()">✅ Continuă</button>
+  </div>
+</div>
+
+<!-- ═══ USER MODAL ═══ -->
+<div class="ov" id="umOv">
+  <div class="modal">
+    <div class="mh"></div>
+    <div class="mt">👤 Utilizator</div>
+    <div id="umInfo" style="margin-bottom:12px"></div>
+    <label>Schimbă numele</label>
+    <input type="text" id="umInput" onkeydown="if(event.key==='Enter')umOk()">
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-outline" onclick="closeOv('umOv')">Anulează</button>
+      <button class="btn btn-primary" onclick="umOk()">✅ Confirmă</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRM MODAL ═══ -->
+<div class="ov center" id="cfOv">
+  <div class="modal">
+    <div class="mt" id="cfTitle">📋 Confirmă datele</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
+      Apasă <strong style="color:var(--success)">Enter / Da</strong> pentru a salva sau
+      <strong style="color:var(--danger)">Esc / Nu</strong> pentru a modifica.
+    </p>
+    <div id="cfContent"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-outline" onclick="cfNo()" id="cfNoBtn">✖️ Nu, modifică</button>
+      <button class="btn btn-success" onclick="cfYes()" id="cfYesBtn">✔️ Da, salvează</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW ENTRY ═══ -->
+<div class="ov" id="veOv">
+  <div class="modal">
+    <div class="mh"></div>
+    <div class="mt" id="veTitle">Înregistrare</div>
+    <div id="veContent"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-red" onclick="delEntry()" style="flex:.6">🗑️ Șterge</button>
+      <button class="btn btn-outline" onclick="closeOv('veOv')">Închide</button>
+    </div>
+  </div>
+</div>
+
+<!-- iOS Install Modal -->
+<div class="ov center" id="iosInstallOv">
+  <div class="modal">
+    <div class="mt">📲 Instalează aplicația</div>
+    <p style="font-size:14px;color:var(--muted);line-height:1.8;margin-bottom:16px">
+      Pe iPhone/iPad, instalarea se face din <strong style="color:var(--text)">Safari</strong>:
+    </p>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:14px;line-height:2">
+      1. Apasă <strong style="color:var(--accent)">⬆️ Share</strong> din bara de jos<br>
+      2. Derulează și apasă <strong style="color:var(--accent)">Add to Home Screen</strong><br>
+      3. Apasă <strong style="color:var(--accent)">Add</strong> sus-dreapta
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:12px;text-align:center">
+      ⚠️ Funcționează doar din Safari, nu din Chrome sau Brave pe iOS
+    </p>
+    <button class="btn btn-primary" onclick="closeOv('iosInstallOv')" style="margin-top:14px">Am înțeles</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════
+var SHEETS_URL = 'https://script.google.com/macros/s/AKfycbytQ6LdMzS2HJgcldLkyTV35GunPo_Z9aE4oWPKGV4lDpH1IeWKsmpsdOK6H10RHnJE/exec';
+
+var ZF = [
+  {id:'zd',  name:'Data',                           type:'date',   req:true,  min:null,max:null},
+  {id:'zoh', name:'Ore zbor (număr întreg)',         type:'number', req:true,  min:0,   max:null},
+  {id:'zom', name:'Minute zbor (0-59)',              type:'number', req:true,  min:0,   max:59},
+  {id:'zat', name:'Număr aterizări',                 type:'number', req:true,  min:0,   max:null},
+  {id:'zsh', name:'Ore motoare sol (număr întreg)',  type:'number', req:true,  min:0,   max:null},
+  {id:'zsm', name:'Minute motoare sol (0-59)',       type:'number', req:true,  min:0,   max:59},
+  {id:'zah', name:'Ore motor auxiliar (număr întreg)',type:'number',req:false, min:0,   max:null},
+  {id:'zam', name:'Minute motor auxiliar (0-59)',    type:'number', req:false, min:0,   max:59},
+  {id:'zc1', name:'Ciclii motor 1',                  type:'number', req:false, min:0,   max:null},
+  {id:'zc2', name:'Ciclii motor 2',                  type:'number', req:false, min:0,   max:null},
+  {id:'zca', name:'Ciclii motor auxiliar',           type:'number', req:false, min:0,   max:null},
+];
+var ZG = [
+  {l:'Zbor',           ids:['zd','zoh','zom','zat']},
+  {l:'Motoare sol',    ids:['zsh','zsm']},
+  {l:'Motor auxiliar', ids:['zah','zam']},
+  {l:'Ciclii',         ids:['zc1','zc2','zca']},
+];
+var AF = [
+  {id:'ad', name:'Data',          type:'date', req:true},
+  {id:'ar', name:'Reper agregat', type:'text', req:true},
+  {id:'as', name:'Serie agregat', type:'text', req:true},
+  {id:'an', name:'Denumire',      type:'text', req:true},
+];
+
+// ════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════
+var S = {user:'', shUrl:SHEETS_URL, zbor:[], dem:[], mon:[]};
+var pending = null, pendType = null;
+var viewId = null, viewType = null;
+var recTab = 'zbor', recFilt = null;
+var curAgrType = null;
+
+function save() { try{localStorage.setItem('dc6',JSON.stringify(S));}catch(e){} }
+function load() {
+  try{
+    var r=localStorage.getItem('dc6');
+    if(r){ var p=JSON.parse(r); S=Object.assign({user:'',shUrl:SHEETS_URL,zbor:[],dem:[],mon:[]},p); S.shUrl=SHEETS_URL; }
+  }catch(e){}
+}
+
+// ════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function pad(v){return String(v).padStart(2,'0');}
+function fmtDate(iso){if(!iso)return '—'; var p=iso.split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:iso;}
+function tot(){return S.zbor.length+S.dem.length+S.mon.length;}
+function ini(n){if(!n)return ''; return n.trim().split(/\s+/).map(function(w){return w[0].toUpperCase();}).slice(0,2).join('');}
+
+function toast(msg,type){
+  var el=document.getElementById('toast');
+  el.textContent=({ok:'✅ ',er:'❌ ',wn:'⚠️ '}[type]||'')+msg;
+  el.className='toast '+(type||'ok')+' show';
+  clearTimeout(el._t); el._t=setTimeout(function(){el.classList.remove('show');},2800);
+}
+
+function openOv(id){document.getElementById(id).classList.add('open');}
+function closeOv(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.ov').forEach(function(el){
+  el.addEventListener('click',function(e){if(e.target===el)el.classList.remove('open');});
+});
+
+function setSdot(s){document.getElementById('sdot').className='sync-dot '+(s||'');}
+function updSdot(){
+  if(!S.shUrl){setSdot('');return;}
+  var any=S.zbor.concat(S.dem,S.mon).some(function(e){return !e._synced;});
+  setSdot(any?'err':'ok');
+}
+function updCnt(){document.getElementById('rcnt').textContent=tot()+' înreg.';}
+
+// ════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════
+function goTab(name){
+  var names=['zbor','agr','rec','exp'];
+  document.querySelectorAll('.tab').forEach(function(t,i){t.classList.toggle('active',names[i]===name);});
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.getElementById('page-'+name).classList.add('active');
+  if(name==='zbor') renderZ();
+  if(name==='agr') showAgrSel();
+  if(name==='rec') {buildFbar(); renderRec();}
+  if(name==='exp') {renderExpStats(); renderShStatus();}
+}
+
+// ════════════════════════════════════════════════
+// USER
+// ════════════════════════════════════════════════
+function initUser(){
+  if(!S.user){
+    var s=document.getElementById('ftScreen');
+    s.style.display='flex';
+    setTimeout(function(){document.getElementById('ftName').focus();},300);
+  } else updAv();
+}
+function ftOk(){
+  var v=document.getElementById('ftName').value.trim(); if(!v)return;
+  S.user=v; save();
+  document.getElementById('ftScreen').style.display='none';
+  updAv(); toast('Bun venit, '+v+'!');
+}
+function openUM(){
+  document.getElementById('umInput').value=S.user;
+  var cnt=S.zbor.concat(S.dem,S.mon).filter(function(e){return e._user===S.user;}).length;
+  document.getElementById('umInfo').innerHTML=
+    '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px 13px;display:flex;align-items:center;gap:11px">'+
+    '<div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff">'+esc(ini(S.user))+'</div>'+
+    '<div><div style="font-weight:700">'+esc(S.user)+'</div><div style="font-size:12px;color:var(--muted)">'+cnt+' înregistrări</div></div></div>';
+  openOv('umOv');
+  setTimeout(function(){document.getElementById('umInput').focus();},200);
+}
+function umOk(){
+  var v=document.getElementById('umInput').value.trim(); if(!v)return;
+  S.user=v; save(); closeOv('umOv'); updAv(); toast('Nume schimbat: '+v);
+}
+function updAv(){
+  var i=ini(S.user);
+  var el=document.getElementById('avEl');
+  el.textContent=i||'👤'; el.className='av'+(S.user?'':' u');
+  document.getElementById('avName').textContent=S.user||'Setează';
+}
+
+// ════════════════════════════════════════════════
+// DATE HELPERS
+// ════════════════════════════════════════════════
+function datHtml(fid,req){
+  var star=req?'<span class="req">*</span>':'';
+  return '<label>Data'+star+'</label>'+
+    '<div class="drow">'+
+    '<input type="text" inputmode="numeric" id="'+fid+'_dd" placeholder="ZZ" maxlength="2" autocomplete="off">'+
+    '<span class="dsep">/</span>'+
+    '<input type="text" inputmode="numeric" id="'+fid+'_mm" placeholder="LL" maxlength="2" autocomplete="off">'+
+    '<span class="dsep">/</span>'+
+    '<input type="text" inputmode="numeric" id="'+fid+'_yy" placeholder="AAAA" maxlength="4" class="yr" autocomplete="off">'+
+    '</div>'+
+    '<div class="dhint" id="'+fid+'_hint"></div>';
+}
+function datVal(fid){
+  var dd=document.getElementById(fid+'_dd'); if(!dd)return '';
+  var d=dd.value.trim(), m=document.getElementById(fid+'_mm').value.trim(), y=document.getElementById(fid+'_yy').value.trim();
+  if(!d||!m||!y||y.length<4)return '';
+  var di=parseInt(d), mi=parseInt(m), yi=parseInt(y);
+  if(isNaN(di)||isNaN(mi)||isNaN(yi))return '';
+  var dt=new Date(yi,mi-1,di);
+  if(dt.getFullYear()!==yi||dt.getMonth()!==mi-1||dt.getDate()!==di)return '';
+  return y+'-'+pad(String(mi))+'-'+pad(String(di));
+}
+function datHint(fid){
+  var dd=document.getElementById(fid+'_dd'); if(!dd)return;
+  var d=dd.value.trim(), m=document.getElementById(fid+'_mm').value.trim(), y=document.getElementById(fid+'_yy').value.trim();
+  var h=document.getElementById(fid+'_hint'); if(!h)return;
+  if(d&&m&&y&&y.length===4){
+    var di=parseInt(d),mi=parseInt(m),yi=parseInt(y);
+    var dt=new Date(yi,mi-1,di);
+    var ok=dt.getFullYear()===yi&&dt.getMonth()===mi-1&&dt.getDate()===di;
+    if(ok){
+      var days=['Duminică','Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă'];
+      h.textContent='✅ '+days[dt.getDay()]+', '+pad(d)+'/'+pad(m)+'/'+y;
+      h.style.color='var(--success)';
+    } else { h.textContent='❌ Dată invalidă'; h.style.color='var(--danger)'; }
+  } else { h.textContent=(d||m||y)?(d||'__')+'/'+(m||'__')+'/'+(y||'____'):''; h.style.color='var(--muted)'; }
+}
+
+// ════════════════════════════════════════════════
+// KEYBOARD AVOIDANCE
+// dvh se actualizeaza automat cand apare keypad-ul
+// Adaugam padding-bottom dinamic = inaltimea keypad-ului
+// ════════════════════════════════════════════════
+(function(){
+  function kbH(){
+    if(!window.visualViewport) return 0;
+    return Math.max(0, window.innerHeight - window.visualViewport.height);
+  }
+  function adjust(){
+    var kb = kbH();
+    // padding = inaltimea keypad + 120px extra ca ultimele campuri sa fie vizibile
+    var pad = kb > 0 ? kb + 120 : 24;
+    document.querySelectorAll('.page').forEach(function(p){
+      p.style.paddingBottom = pad + 'px';
+    });
+    // scroll campul activ in view - nearest e mai precis decat center pe mobile
+    var el = document.activeElement;
+    if(el && (el.tagName==='INPUT'||el.tagName==='TEXTAREA')){
+      el.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+  }
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', function(){
+      // delay mic ca keypad-ul sa termine animatia
+      setTimeout(adjust, 50);
+      setTimeout(adjust, 300);
+    });
+  }
+  document.addEventListener('focusin', function(e){
+    if(e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA') return;
+    setTimeout(adjust, 100);
+    setTimeout(adjust, 500);
+  });
+})();
+
+// ════════════════════════════════════════════════
+// NAV (Enter between fields)
+// ════════════════════════════════════════════════
+function attachNav(sel, onLast) {
+  // selectam toate inputurile din container
+  var inputs = Array.from(document.querySelectorAll(
+    sel+' input[type=number], '+sel+' input[type=text]'
+  ));
+
+  inputs.forEach(function(el, i) {
+    var id = el.id || '';
+    var isDD = id.endsWith('_dd');
+    var isMM = id.endsWith('_mm');
+    var isYY = id.endsWith('_yy');
+    var isDatePart = isDD || isMM || isYY;
+
+    // --- Enter / Backspace ---
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!isDatePart) clamp(el);
+        var next = inputs[i+1];
+        if (next) {
+          next.focus();
+          next.select();
+          // scroll imediat si dupa 300ms (dupa ce keypad-ul s-a stabilizat)
+          next.scrollIntoView({behavior:'smooth', block:'center'});
+          setTimeout(function(){
+            next.scrollIntoView({behavior:'smooth', block:'center'});
+          }, 300);
+        }
+        else onLast();
+      }
+      if (e.key === 'Backspace' && el.value === '') {
+        var prev = inputs[i-1];
+        if (prev) {
+          e.preventDefault();
+          prev.focus();
+          prev.select();
+          prev.scrollIntoView({behavior:'smooth', block:'center'});
+        }
+      }
+    });
+
+    // --- auto-advance pentru campuri de data ---
+    if (isDatePart) {
+      var fid = id.slice(0, id.lastIndexOf('_'));
+      var limit = isYY ? 4 : 2;
+
+      el.addEventListener('input', function() {
+        // permite doar cifre
+        el.value = el.value.replace(/\D/g,'');
+        // trunchiaza la lungimea maxima
+        if (el.value.length > limit) el.value = el.value.slice(0, limit);
+        // updateaza preview-ul
+        datHint(fid);
+        // avanseaza la urmatorul camp cand s-a atins limita
+        if (el.value.length === limit) {
+          var next = inputs[i+1];
+          if (next) {
+            setTimeout(function(){
+              next.focus();
+              next.select();
+              next.scrollIntoView({behavior:'smooth', block:'center'});
+            }, 20);
+          }
+        }
+      });
+    } else {
+      // campuri normale — clamp la blur
+      el.addEventListener('blur', function(){ clamp(el); });
+    }
+  });
+}
+
+function clamp(el) {
+  if (el.type !== 'number' || el.value === '') return;
+  var v = Math.floor(parseFloat(el.value));
+  if (el.max && v > parseInt(el.max)) v = parseInt(el.max);
+  if (el.min !== '' && v < parseInt(el.min)) v = parseInt(el.min);
+  if (!isNaN(v)) el.value = v;
+}
+
+// ════════════════════════════════════════════════
+// ZBOR FORM
+// ════════════════════════════════════════════════
+function renderZ() {
+  var fm = {}; ZF.forEach(function(f){fm[f.id]=f;});
+  var n = S.zbor.length+1;
+  var h = '<div class="card"><div class="card-title">Zbor nou <span style="color:var(--accent);font-size:11px">#'+n+'</span></div>';
+  ZG.forEach(function(g) {
+    h += '<div class="gtitle">'+g.l+'</div>';
+    g.ids.forEach(function(id) {
+      var f=fm[id]; if(!f)return;
+      var star=f.req?'<span class="req">*</span>':'';
+      if (f.type==='date') { h+=datHtml(id,f.req); }
+      else {
+        var at='type="number" inputmode="numeric" id="inp_'+id+'"';
+        if(f.min!==null)at+=' min="'+f.min+'"';
+        if(f.max!==null)at+=' max="'+f.max+'"';
+        h+='<label>'+esc(f.name)+star+'</label><input '+at+'>';
+      }
+    });
+  });
+  h+='</div>';
+  document.getElementById('zForm').innerHTML=h;
+  document.getElementById('zBtn').style.display='flex';
+  attachNav('#page-zbor', zConfirm);
+  setTimeout(function(){var f=document.querySelector('#page-zbor input');if(f)f.focus();},80);
+}
+
+function collectZ() {
+  var data={}, err=null;
+  for(var i=0;i<ZF.length;i++){
+    var f=ZF[i];
+    if(f.type==='date'){
+      var v=datVal(f.id);
+      if(f.req&&!v){err='"'+f.name+'" lipsă sau invalidă';break;}
+      data[f.id]=v;
+    } else {
+      var el=document.getElementById('inp_'+f.id); if(!el)continue;
+      var val=el.value.trim();
+      if(f.req&&val===''){err='"'+f.name+'" este obligatoriu';break;}
+      if(val!==''){
+        var num=parseInt(val);
+        if(f.max!==null&&num>f.max){err=f.name+': max '+f.max;break;}
+        data[f.id]=num;
+      } else data[f.id]='';
+    }
+  }
+  return {data:data,err:err};
+}
+
+function zConfirm() {
+  var r=collectZ(); if(r.err){toast(r.err,'er');return;}
+  pending={_id:'z_'+Date.now(),_ts:new Date().toISOString(),_synced:false,_user:S.user,data:r.data};
+  pendType='zbor';
+  var fm={}; ZF.forEach(function(f){fm[f.id]=f;});
+  var h='<div class="crow"><span class="cl" style="color:var(--accent)">Utilizator</span><span class="cv" style="color:var(--accent)">'+esc(S.user||'—')+'</span></div>';
+  ZG.forEach(function(g){
+    var has=g.ids.some(function(id){return r.data[id]!==''&&r.data[id]!==undefined;});
+    if(!has)return;
+    h+='<div class="csect">'+g.l+'</div>';
+    g.ids.forEach(function(id){
+      var f=fm[id],v=r.data[id]; if(v===''||v===undefined)return;
+      h+='<div class="crow"><span class="cl">'+esc(f.name)+'</span><span class="cv">'+(f.type==='date'?fmtDate(v):esc(String(v)))+'</span></div>';
+    });
+  });
+  document.getElementById('cfTitle').textContent='✈️ Confirmă zborul';
+  document.getElementById('cfContent').innerHTML=h;
+  openOv('cfOv');
+  setTimeout(function(){document.getElementById('cfYesBtn').focus();},100);
+}
+
+// ════════════════════════════════════════════════
+// AGREGATE
+// ════════════════════════════════════════════════
+function showAgrSel(){
+  document.getElementById('agrSel').style.display='block';
+  document.getElementById('agrForm').style.display='none';
+  curAgrType=null;
+}
+function openAgr(type){
+  curAgrType=type;
+  document.getElementById('agrSel').style.display='none';
+  document.getElementById('agrForm').style.display='block';
+  var icon=type==='dem'?'🔴':'🟢';
+  var label=type==='dem'?'Demontare':'Montare';
+  var list=type==='dem'?S.dem:S.mon;
+  var n=list.length+1;
+  var h='<div class="card"><div class="card-title">'+icon+' '+label+' nouă <span style="color:var(--accent);font-size:11px">#'+n+'</span></div>';
+  AF.forEach(function(f){
+    var star=f.req?'<span class="req">*</span>':'';
+    if(f.type==='date') h+=datHtml(f.id,f.req);
+    else h+='<label>'+esc(f.name)+star+'</label><input type="text" id="inp_'+f.id+'">';
+  });
+  h+='</div>';
+  document.getElementById('agrFields').innerHTML=h;
+  attachNav('#agrForm', aConfirm);
+  setTimeout(function(){var f=document.querySelector('#agrForm input');if(f)f.focus();},80);
+}
+function collectA(){
+  var data={},err=null;
+  for(var i=0;i<AF.length;i++){
+    var f=AF[i];
+    if(f.type==='date'){
+      var v=datVal(f.id);
+      if(f.req&&!v){err='"'+f.name+'" lipsă sau invalidă';break;}
+      data[f.id]=v;
+    } else {
+      var el=document.getElementById('inp_'+f.id); if(!el)continue;
+      var val=el.value.trim();
+      if(f.req&&val===''){err='"'+f.name+'" este obligatoriu';break;}
+      data[f.id]=val;
+    }
+  }
+  return {data:data,err:err};
+}
+function aConfirm(){
+  var r=collectA(); if(r.err){toast(r.err,'er');return;}
+  pending={_id:(curAgrType==='dem'?'d_':'m_')+Date.now(),_ts:new Date().toISOString(),_synced:false,_user:S.user,data:r.data};
+  pendType=curAgrType;
+  var icon=curAgrType==='dem'?'🔴':'🟢';
+  var label=curAgrType==='dem'?'Demontare':'Montare';
+  var h='<div class="crow"><span class="cl" style="color:var(--accent)">Utilizator</span><span class="cv" style="color:var(--accent)">'+esc(S.user||'—')+'</span></div>';
+  AF.forEach(function(f){
+    var v=r.data[f.id]; if(v===''||v===undefined)return;
+    h+='<div class="crow"><span class="cl">'+esc(f.name)+'</span><span class="cv">'+(f.type==='date'?fmtDate(v):esc(String(v)))+'</span></div>';
+  });
+  document.getElementById('cfTitle').textContent=icon+' Confirmă '+label;
+  document.getElementById('cfContent').innerHTML=h;
+  openOv('cfOv');
+  setTimeout(function(){document.getElementById('cfYesBtn').focus();},100);
+}
+
+// ════════════════════════════════════════════════
+// CONFIRM
+// ════════════════════════════════════════════════
+document.addEventListener('keydown',function(e){
+  if(!document.getElementById('cfOv').classList.contains('open'))return;
+  // Ignoram Enter pentru 300ms dupa ce s-a deschis modalul
+  // ca sa nu se inchida imediat din cauza focus pe cfYesBtn
+  if(e.key==='Escape'){e.preventDefault();cfNo();}
+  if(e.key==='Enter'){
+    e.preventDefault();
+    // verifica ca modalul e cu adevarat deschis si vizibil
+    var ov = document.getElementById('cfOv');
+    if(ov.classList.contains('open') && ov._ready){
+      cfYes();
+    }
+  }
+});
+// marcam modalul ca "ready" la 350ms dupa deschidere
+var _origOpenOv = openOv;
+function openOv(id){
+  var el = document.getElementById(id);
+  el.classList.add('open');
+  el._ready = false;
+  setTimeout(function(){ el._ready = true; }, 350);
+}
+function cfNo(){
+  closeOv('cfOv');
+  // return focus to last input of active form
+  var sel = pendType==='zbor' ? '#page-zbor input' : '#agrForm input';
+  var inputs=Array.from(document.querySelectorAll(sel));
+  if(inputs.length) inputs[inputs.length-1].focus();
+}
+function cfYes(){
+  if(!pending)return;
+  closeOv('cfOv');
+  var type=pendType;
+  if(type==='zbor') S.zbor.unshift(pending);
+  else if(type==='dem') S.dem.unshift(pending);
+  else if(type==='mon') S.mon.unshift(pending);
+  pending=null; pendType=null;
+  save(); updCnt(); updSdot();
+  toast('Salvat! ✅');
+  if(type==='zbor') renderZ();
+  else showAgrSel();
+  if(S.shUrl) syncAll(true);
+}
+
+// ════════════════════════════════════════════════
+// RECORDS
+// ════════════════════════════════════════════════
+function setRT(tab,el){
+  recTab=tab; recFilt=null;
+  document.querySelectorAll('.rtab').forEach(function(t){t.classList.remove('on');});
+  el.classList.add('on');
+  buildFbar(); renderRec();
+}
+function buildFbar(){
+  var list=recTab==='zbor'?S.zbor:recTab==='dem'?S.dem:S.mon;
+  var users=[]; list.forEach(function(e){if(e._user&&users.indexOf(e._user)<0)users.push(e._user);});
+  var b=document.getElementById('fbar');
+  if(users.length<=1){b.innerHTML='';return;}
+  b.innerHTML='<div class="fc'+(recFilt===null?' on':'')+'" onclick="setFilt(null)">Toți</div>'+
+    users.map(function(u){return '<div class="fc'+(recFilt===u?' on':'')+'" onclick="setFilt(\''+esc(u)+'\')">'+esc(u)+'</div>';}).join('');
+}
+function setFilt(u){recFilt=u;buildFbar();renderRec();}
+function renderRec(){
+  updCnt();
+  var el=document.getElementById('recList');
+  var q=(document.getElementById('srch').value||'').toLowerCase();
+  var list=recTab==='zbor'?S.zbor:recTab==='dem'?S.dem:S.mon;
+  if(recFilt)list=list.filter(function(e){return e._user===recFilt;});
+  if(q)list=list.filter(function(e){return JSON.stringify(e).toLowerCase().indexOf(q)>=0;});
+  if(!list.length){
+    el.innerHTML='<div class="empty"><div class="empty-ic">'+(q?'🔍':'📭')+'</div><h3>'+(q?'Niciun rezultat':'Nicio înregistrare')+'</h3></div>';
+    return;
+  }
+  var src=recTab==='zbor'?S.zbor:recTab==='dem'?S.dem:S.mon;
+  el.innerHTML=list.map(function(e){
+    var n=src.length-src.indexOf(e);
+    var ts=new Date(e._ts).toLocaleString('ro-RO',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    var sb=e._synced?'<span class="sb s">☁️</span>':'<span class="sb p">⏳</span>';
+    var dt=fmtDate(e.data.zd||e.data.ad||'');
+    var chips='';
+    if(recTab==='zbor'){
+      chips='<div class="chip"><strong>Zbor: </strong>'+esc(String(e.data.zoh||0))+'h '+esc(String(e.data.zom||0))+'m</div>'+
+            '<div class="chip"><strong>Aterizări: </strong>'+esc(String(e.data.zat||0))+'</div>'+
+            '<div class="chip"><strong>Sol: </strong>'+esc(String(e.data.zsh||0))+'h '+esc(String(e.data.zsm||0))+'m</div>';
+    } else {
+      chips='<div class="chip"><strong>Reper: </strong>'+esc(e.data.ar||'—')+'</div>'+
+            '<div class="chip"><strong>Serie: </strong>'+esc(e.data.as||'—')+'</div>'+
+            '<div class="chip"><strong>Den.: </strong>'+esc(e.data.an||'—')+'</div>';
+    }
+    return '<div class="ecard" onclick="viewE(\''+e._id+'\',\''+recTab+'\')">'+
+      '<div class="etop"><div class="emeta"><span class="enum">#'+n+' '+sb+'</span><span class="euser">👤 '+esc(e._user||'—')+'</span></div>'+
+      '<div><div class="edate">📅 '+esc(dt)+'</div><div class="ets">'+ts+'</div></div></div>'+
+      '<div class="echips">'+chips+'</div></div>';
+  }).join('');
+}
+function viewE(id,type){
+  viewId=id; viewType=type;
+  var list=type==='zbor'?S.zbor:type==='dem'?S.dem:S.mon;
+  var e=list.find(function(x){return x._id===id;}); if(!e)return;
+  var n=list.length-list.indexOf(e);
+  var labels={zbor:'✈️ Zbor',dem:'🔴 Demontare',mon:'🟢 Montare'};
+  document.getElementById('veTitle').textContent=labels[type]+' #'+n;
+  var fields=type==='zbor'?ZF:AF;
+  var groups=type==='zbor'?ZG:null;
+  var h='<p style="font-size:12px;color:var(--muted);margin-bottom:7px">👤 <strong style="color:var(--accent)">'+esc(e._user||'—')+'</strong> · '+(e._synced?'☁️ Sincronizat':'⏳ Nesincronizat')+'</p>';
+  if(groups){
+    var fm={}; fields.forEach(function(f){fm[f.id]=f;});
+    groups.forEach(function(g){
+      h+='<div class="csect">'+g.l+'</div>';
+      g.ids.forEach(function(id){
+        var f=fm[id],v=e.data[id];
+        var d=(v===''||v===undefined||v===null)?'—':(f.type==='date'?fmtDate(String(v)):v);
+        h+='<div class="crow"><span class="cl">'+esc(f.name)+'</span><span class="cv">'+esc(String(d))+'</span></div>';
+      });
+    });
+  } else {
+    fields.forEach(function(f){
+      var v=e.data[f.id];
+      var d=(v===''||v===undefined||v===null)?'—':(f.type==='date'?fmtDate(String(v)):v);
+      h+='<div class="crow"><span class="cl">'+esc(f.name)+'</span><span class="cv">'+esc(String(d))+'</span></div>';
+    });
+  }
+  document.getElementById('veContent').innerHTML=h;
+  openOv('veOv');
+}
+function delEntry(){
+  if(!viewId)return;
+  if(!confirm('Ștergi această înregistrare?'))return;
+  var lists={zbor:S.zbor,dem:S.dem,mon:S.mon};
+  lists[viewType]=lists[viewType].filter(function(e){return e._id!==viewId;});
+  S.zbor=lists.zbor;S.dem=lists.dem;S.mon=lists.mon;
+  save();closeOv('veOv');renderRec();updCnt();
+  toast('Înregistrare ștearsă');
+}
+
+// ════════════════════════════════════════════════
+// GOOGLE SHEETS SYNC — folosim fetch cu no-cors + marcare optimista
+// + fallback iframe pentru browsere care blocheaza
+// ════════════════════════════════════════════════
+function shPost(payload) {
+  return fetch(S.shUrl, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify(payload)
+  });
+}
+
+function renderShStatus(){
+  var setup=document.getElementById('shSetup');
+  var conn=document.getElementById('shConn');
+  var st=document.getElementById('shStatus');
+  if(!S.shUrl){
+    st.innerHTML='<p style="font-size:13px;color:var(--muted);margin-bottom:10px">Conectează cu Google Sheets pentru sync automat.</p><button class="btn btn-primary" onclick="showShSetup()">🔗 Configurează</button>';
+    setup.style.display='none';conn.style.display='none';
+  } else {
+    st.innerHTML='';setup.style.display='none';conn.style.display='block';
+    var p=S.zbor.concat(S.dem,S.mon).filter(function(e){return !e._synced;}).length;
+    document.getElementById('pendN').textContent=p;
+  }
+  updSdot();
+}
+function showShSetup(){
+  document.getElementById('shStatus').innerHTML='';
+  document.getElementById('shSetup').style.display='block';
+  document.getElementById('shConn').style.display='none';
+  if(S.shUrl)document.getElementById('shUrl').value=S.shUrl;
+}
+function saveShUrl(){
+  var url=document.getElementById('shUrl').value.trim();
+  if(url.indexOf('script.google.com')<0){toast('URL invalid','er');return;}
+  S.shUrl=url; save();
+  toast('Inițializez foile...','wn');
+  initShHeaders().then(function(){
+    renderShStatus(); toast('Conectat! Sincronizez...','wn');
+    syncAll(false);
+  });
+}
+function initShHeaders(){
+  var tables=[
+    {sheet:'Zboruri',   headers:['#','Data/Ora','Utilizator'].concat(ZF.map(function(f){return f.name;}))},
+    {sheet:'Demontari', headers:['#','Data/Ora','Utilizator'].concat(AF.map(function(f){return f.name;}))},
+    {sheet:'Montari',   headers:['#','Data/Ora','Utilizator'].concat(AF.map(function(f){return f.name;}))},
+  ];
+  var ps=tables.map(function(t){
+    return shPost({action:'init',sheet:t.sheet,headers:t.headers}).catch(function(){});
+  });
+  return Promise.all(ps);
+}
+function syncAll(silent){
+  if(!S.shUrl){if(!silent)toast('Configurează Google Sheets mai întâi','er');return;}
+  var tasks=[
+    {list:S.zbor, fields:ZF, sheet:'Zboruri'},
+    {list:S.dem,  fields:AF, sheet:'Demontari'},
+    {list:S.mon,  fields:AF, sheet:'Montari'},
+  ];
+  var total=0;
+  tasks.forEach(function(t){total+=t.list.filter(function(e){return !e._synced;}).length;});
+  if(!total){if(!silent)toast('Toate datele sunt sincronizate ✓');return;}
+  setSdot('spin');
+  if(!silent)toast('Sincronizez '+total+' înregistrări...','wn');
+  var ps=tasks.map(function(t){
+    var un=t.list.filter(function(e){return !e._synced;}).slice().reverse();
+    if(!un.length)return Promise.resolve();
+    var rows=un.map(function(e){
+      var n=t.list.length-t.list.indexOf(e);
+      var row=[n,new Date(e._ts).toLocaleString('ro-RO'),e._user||'—'];
+      t.fields.forEach(function(f){var v=e.data[f.id];row.push((v!==undefined&&v!=='')?v:'');});
+      return row;
+    });
+    return shPost({action:'append',sheet:t.sheet,rows:rows}).then(function(){
+      un.forEach(function(e){e._synced=true;});
+    }).catch(function(err){console.warn('sync err',err);});
+  });
+  Promise.all(ps).then(function(){
+    save(); setSdot('ok');
+    if(!silent)toast('Sincronizat! '+total+' înregistrări ☁️');
+    renderShStatus();
+    if(document.getElementById('page-rec').classList.contains('active'))renderRec();
+  }).catch(function(){setSdot('err');if(!silent)toast('Eroare sync','er');});
+}
+
+// ════════════════════════════════════════════════
+// EXPORT
+// ════════════════════════════════════════════════
+function renderExpStats(){
+  document.getElementById('xZ').textContent=S.zbor.length;
+  document.getElementById('xD').textContent=S.dem.length;
+  document.getElementById('xM').textContent=S.mon.length;
+}
+function bldSheet(list,fields){
+  var h=['#','Data/Ora','Utilizator'].concat(fields.map(function(f){return f.name;}));
+  var rows=list.slice().reverse().map(function(e,i){
+    var row=[i+1,new Date(e._ts).toLocaleString('ro-RO'),e._user||'—'];
+    fields.forEach(function(f){var v=e.data[f.id];row.push((v!==undefined&&v!=='')?v:'');});
+    return row;
+  });
+  return [h].concat(rows);
+}
+function expXL(){
+  if(!S.zbor.length&&!S.dem.length&&!S.mon.length){toast('Nu există date','er');return;}
+  var wb=XLSX.utils.book_new();
+  [{n:'Zboruri',d:S.zbor,f:ZF},{n:'Demontari',d:S.dem,f:AF},{n:'Montari',d:S.mon,f:AF}].forEach(function(s){
+    var data=bldSheet(s.d,s.f);
+    var ws=XLSX.utils.aoa_to_sheet(data);
+    if(data[0])ws['!cols']=data[0].map(function(h){return {wch:Math.max(String(h).length+4,12)};});
+    XLSX.utils.book_append_sheet(wb,ws,s.n);
+  });
+  XLSX.writeFile(wb,'export_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Excel descărcat!');
+}
+function expJSON(){
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}));
+  a.download='backup_'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  toast('Backup descărcat!');
+}
+function impData(ev){
+  var f=ev.target.files[0]; if(!f)return;
+  var r=new FileReader();
+  r.onload=function(e){
+    try{
+      var d=JSON.parse(e.target.result);
+      if(!d.zbor&&!d.dem&&!d.mon)throw new Error('invalid');
+      if(!confirm('Importezi datele? Cele existente vor fi înlocuite.'))return;
+      S=Object.assign({shUrl:SHEETS_URL,user:S.user,zbor:[],dem:[],mon:[]},d);
+      S.shUrl=SHEETS_URL; save(); updCnt(); renderRec(); toast('Date importate!');
+    }catch(e){toast('Fișier invalid','er');}
+  };
+  r.readAsText(f); ev.target.value='';
+}
+function resetAll(){
+  if(!confirm('Ștergi TOATE datele? Nu poate fi anulat.'))return;
+  S={user:S.user,shUrl:SHEETS_URL,zbor:[],dem:[],mon:[]};
+  save(); updCnt(); updSdot(); renderZ(); toast('Date șterse');
+}
+
+// ════════════════════════════════════════════════
+// INSTALL PROMPT
+// ════════════════════════════════════════════════
+var _installPrompt = null;
+
+// Android/Chrome/Edge/Brave: capturam evenimentul de instalare
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _installPrompt = e;
+  // aratam butonul de instalare
+  var btn = document.getElementById('installBtn');
+  if (btn) btn.style.display = 'block';
+});
+
+// Dupa instalare ascundem butonul
+window.addEventListener('appinstalled', function() {
+  var btn = document.getElementById('installBtn');
+  if (btn) btn.style.display = 'none';
+  _installPrompt = null;
+  toast('Aplicație instalată! ✅');
+});
+
+function installApp() {
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  var isInStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+  if (isInStandalone) {
+    toast('Aplicația e deja instalată! ✅');
+    return;
+  }
+
+  if (_installPrompt) {
+    // Android/Chrome/Edge — prompt nativ
+    _installPrompt.prompt();
+    _installPrompt.userChoice.then(function(result) {
+      if (result.outcome === 'accepted') {
+        toast('Se instalează... ✅');
+      }
+      _installPrompt = null;
+      document.getElementById('installBtn').style.display = 'none';
+    });
+  } else if (isIOS) {
+    // iOS — afisam instructiuni manuale
+    openOv('iosInstallOv');
+  } else {
+    // Fallback pentru alte browsere
+    toast('Folosește meniul browserului → Add to Home Screen', 'wn');
+  }
+}
+
+// Pe iOS aratam butonul daca nu e deja instalata
+(function() {
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  var isInStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (isIOS && !isInStandalone) {
+    var btn = document.getElementById('installBtn');
+    if (btn) btn.style.display = 'block';
+  }
+})();
+
+// ════════════════════════════════════════════════
+// SERVICE WORKER
+// ════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js').then(function(reg) {
+      console.log('SW registered:', reg.scope);
+    }).catch(function(err) {
+      console.log('SW error:', err);
+    });
+  });
+}
+
+// ════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════
+load(); renderZ(); updCnt(); updSdot(); updAv(); initUser();
+</script>
+</body>
+</html>
