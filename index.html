@@ -181,6 +181,27 @@ input[type=text]::placeholder,input[type=number]::placeholder{color:var(--muted)
 ::-webkit-scrollbar{width:3px;}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 
+/* ── INSTALL BANNER ── */
+.install-banner{
+  position:fixed;bottom:0;left:0;right:0;
+  background:linear-gradient(135deg,#1e2a4a,#22263a);
+  border-top:1px solid var(--accent);
+  padding:14px 16px;z-index:500;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  box-shadow:0 -4px 20px rgba(0,0,0,.4);
+}
+.install-banner.hidden{display:none;}
+.install-banner-left{display:flex;align-items:center;gap:10px;flex:1;}
+.install-banner-icon{font-size:28px;flex-shrink:0;}
+.install-banner-text{flex:1;}
+.install-banner-title{font-size:13px;font-weight:700;color:var(--text);}
+.install-banner-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.install-banner-actions{display:flex;gap:8px;flex-shrink:0;}
+.install-banner-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;}
+.install-banner-dismiss{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer;}
+.install-hdr-btn{display:none;background:rgba(91,127,255,.15);border:1px solid rgba(91,127,255,.3);color:var(--accent);border-radius:20px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;}
+.install-hdr-btn.visible{display:block;}
+
 /* search */
 .swrap{position:relative;margin-bottom:10px;}
 .swrap input{padding-left:36px;}
@@ -194,7 +215,7 @@ input[type=text]::placeholder,input[type=number]::placeholder{color:var(--muted)
   <div style="font-size:17px;font-weight:700">Data<span style="color:var(--accent)">Capture</span> ✈️</div>
   <div style="display:flex;align-items:center;gap:8px">
     <div class="sync-dot" id="sdot"></div>
-    <button id="installBtn" onclick="installApp()" style="display:none;background:rgba(91,127,255,.15);border:1px solid rgba(91,127,255,.3);color:var(--accent);border-radius:20px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇️ Instalează</button>
+    <button id="installBtn" class="install-hdr-btn" onclick="installApp()">⬇️ Instalează</button>
     <div class="uc" onclick="openUM()">
       <div class="av u" id="avEl">👤</div>
       <div class="un" id="avName">Setează</div>
@@ -402,6 +423,21 @@ function out(d) {
 
 <!-- Serie Motor Modal -->
 <div class="ov center" id="serieOv"></div>
+
+<!-- Install Banner (Android) -->
+<div id="installBanner" class="install-banner hidden">
+  <div class="install-banner-left">
+    <span class="install-banner-icon">✈️</span>
+    <div class="install-banner-text">
+      <div class="install-banner-title">Instalează DataCapture</div>
+      <div class="install-banner-sub">Acces rapid de pe ecranul principal</div>
+    </div>
+  </div>
+  <div class="install-banner-actions">
+    <button class="install-banner-btn" onclick="installApp()">Instalează</button>
+    <button class="install-banner-dismiss" onclick="dismissBanner()">✕</button>
+  </div>
+</div>
 
 <!-- iOS Install Modal -->
 <div class="ov center" id="iosInstallOv">
@@ -1279,64 +1315,85 @@ function mConfirm() {
 }
 
 // ════════════════════════════════════════════════
-// INSTALL PROMPT
+// PWA INSTALL — identic cu Archery Scorer
 // ════════════════════════════════════════════════
 var _installPrompt = null;
+var INSTALL_KEY = 'dc_install_dismissed';
 
-// Android/Chrome/Edge/Brave: capturam evenimentul de instalare
-window.addEventListener('beforeinstallprompt', function(e) {
-  e.preventDefault();
-  _installPrompt = e;
-  // aratam butonul de instalare
-  var btn = document.getElementById('installBtn');
-  if (btn) btn.style.display = 'block';
-});
-
-// Dupa instalare ascundem butonul
-window.addEventListener('appinstalled', function() {
-  var btn = document.getElementById('installBtn');
-  if (btn) btn.style.display = 'none';
-  _installPrompt = null;
-  toast('Aplicație instalată! ✅');
-});
-
-function installApp() {
+function initInstall() {
   var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  var isInStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
-  if (isInStandalone) {
-    toast('Aplicația e deja instalată! ✅');
+  // Deja instalata — nu arata nimic
+  if (isStandalone) return;
+
+  if (isIOS) {
+    // iOS — arata banner dupa 3s daca nu a fost refuzat
+    var dismissed = localStorage.getItem(INSTALL_KEY);
+    if (!dismissed) setTimeout(showBanner, 3000);
+    // Arata si butonul header
+    var btn = document.getElementById('installBtn');
+    if (btn) btn.classList.add('visible');
     return;
   }
 
-  if (_installPrompt) {
-    // Android/Chrome/Edge — prompt nativ
-    _installPrompt.prompt();
-    _installPrompt.userChoice.then(function(result) {
-      if (result.outcome === 'accepted') {
-        toast('Se instalează... ✅');
-      }
-      _installPrompt = null;
-      document.getElementById('installBtn').style.display = 'none';
-    });
-  } else if (isIOS) {
-    // iOS — afisam instructiuni manuale
-    openOv('iosInstallOv');
-  } else {
-    // Fallback pentru alte browsere
-    toast('Folosește meniul browserului → Add to Home Screen', 'wn');
-  }
+  // Android/Chrome/Edge/Brave
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    _installPrompt = e;
+    var dismissed = localStorage.getItem(INSTALL_KEY);
+    if (!dismissed) setTimeout(showBanner, 2000);
+    var btn = document.getElementById('installBtn');
+    if (btn) btn.classList.add('visible');
+  });
+
+  window.addEventListener('appinstalled', function() {
+    _installPrompt = null;
+    hideBanner();
+    var btn = document.getElementById('installBtn');
+    if (btn) btn.classList.remove('visible');
+    toast('Aplicație instalată! ✅');
+  });
 }
 
-// Pe iOS aratam butonul daca nu e deja instalata
-(function() {
+function showBanner() {
+  var b = document.getElementById('installBanner');
+  if (b) b.classList.remove('hidden');
+}
+
+function hideBanner() {
+  var b = document.getElementById('installBanner');
+  if (b) b.classList.add('hidden');
+}
+
+function dismissBanner() {
+  hideBanner();
+  var btn = document.getElementById('installBtn');
+  if (btn) btn.classList.remove('visible');
+  localStorage.setItem(INSTALL_KEY, Date.now().toString());
+  // Permite re-afisarea dupa 7 zile
+  setTimeout(function(){ localStorage.removeItem(INSTALL_KEY); }, 7*24*60*60*1000);
+}
+
+function installApp() {
   var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  var isInStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-  if (isIOS && !isInStandalone) {
-    var btn = document.getElementById('installBtn');
-    if (btn) btn.style.display = 'block';
+  var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (isStandalone) { toast('Aplicația e deja instalată! ✅'); return; }
+  if (_installPrompt) {
+    _installPrompt.prompt();
+    _installPrompt.userChoice.then(function(r) {
+      if (r.outcome === 'accepted') toast('Se instalează... ✅');
+      _installPrompt = null;
+      hideBanner();
+      var btn = document.getElementById('installBtn');
+      if (btn) btn.classList.remove('visible');
+    });
+  } else if (isIOS) {
+    openOv('iosInstallOv');
+  } else {
+    toast('Deschide meniul browserului → Add to Home Screen', 'wn');
   }
-})();
+}
 
 // ════════════════════════════════════════════════
 // SERVICE WORKER
@@ -1354,7 +1411,7 @@ if ('serviceWorker' in navigator) {
 // ════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════
-load(); renderZ(); updCnt(); updSdot(); updAv(); initUser();
+load(); renderZ(); updCnt(); updSdot(); updAv(); initUser(); initInstall();
 </script>
 </body>
 </html>
